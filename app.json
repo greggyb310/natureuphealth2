@@ -12,14 +12,14 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.natureup.health"
+      "bundleIdentifier": "com.natureup.health2"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#4A7C2E"
       },
-      "package": "com.natureup.health"
+      "package": "com.natureup.health2"
     },
     "web": {
       "bundler": "metro",
