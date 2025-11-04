@@ -102,6 +102,8 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.welcomeText}>Hello, {profile?.first_name}</Text>
+
       {weatherLoading ? (
         <View style={styles.weatherLoadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -168,6 +170,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.background,
+  },
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: '300',
+    color: colors.text.primary,
+    marginBottom: 8,
   },
   setupPrompt: {
     backgroundColor: colors.surface,
