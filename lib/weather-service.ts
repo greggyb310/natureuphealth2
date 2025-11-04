@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import Constants from 'expo-constants';
 
 export interface CurrentWeather {
   temperature: number;
@@ -27,7 +28,9 @@ export interface WeatherData {
 
 class WeatherService {
   private getWeatherFunctionUrl(): string {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseUrl =
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL ||
+      process.env.EXPO_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl) {
       throw new Error('Supabase URL not configured');
     }
