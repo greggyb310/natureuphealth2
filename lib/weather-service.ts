@@ -38,29 +38,47 @@ class WeatherService {
   }
 
   async getWeather(lat: number, lng: number): Promise<WeatherData> {
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) {
-      throw new Error('Not authenticated');
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) {
+        throw new Error('Not authenticated');
+      }
+
+      const url = this.getWeatherFunctionUrl();
+      console.log('Calling weather API:', url);
+
+      const headers = {
+        'Authorization': `Bearer ${session.data.session.access_token}`,
+        'Content-Type': 'application/json',
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ lat, lng }),
+      });
+
+      console.log('Weather API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Weather API error response:', errorText);
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText };
+        }
+        throw new Error(error.error || 'Failed to fetch weather data');
+      }
+
+      const data = await response.json();
+      console.log('Weather data received:', data);
+      return data;
+    } catch (error) {
+      console.error('Weather service error:', error);
+      throw error;
     }
-
-    const url = this.getWeatherFunctionUrl();
-    const headers = {
-      'Authorization': `Bearer ${session.data.session.access_token}`,
-      'Content-Type': 'application/json',
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ lat, lng }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to fetch weather data');
-    }
-
-    return response.json();
   }
 
   getWeatherIconUrl(iconCode: string): string {
