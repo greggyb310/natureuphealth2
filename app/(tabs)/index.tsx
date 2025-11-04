@@ -1,15 +1,19 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/colors';
-import { Leaf, Map, User as UserIcon } from 'lucide-react-native';
+import { weatherService, WeatherData } from '@/lib/weather-service';
+import { CurrentConditions } from '@/components/CurrentConditions';
+import { HourlyForecast } from '@/components/HourlyForecast';
+import { LocationMap } from '@/components/LocationMap';
+import { ChevronDown, ChevronUp, Plus } from 'lucide-react-native';
+import * as Location from 'expo-location';
 
 interface UserProfile {
   first_name: string | null;
   last_name: string | null;
-  health_goals: string[] | null;
   mobility_level: string | null;
 }
 
@@ -17,9 +21,15 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [showForecast, setShowForecast] = useState(false);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     loadProfile();
+    loadLocation();
   }, [user]);
 
   const loadProfile = async () => {
@@ -27,7 +37,7 @@ export default function HomeScreen() {
 
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('first_name, last_name, health_goals, mobility_level')
+      .select('first_name, last_name, mobility_level')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -37,76 +47,107 @@ export default function HomeScreen() {
     setLoading(false);
   };
 
+  const loadLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setWeatherError('Location permission denied');
+        setWeatherLoading(false);
+        return;
+      }
+
+      const locationData = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = locationData.coords;
+      setLocation({ latitude, longitude });
+
+      const weatherData = await weatherService.getWeather(latitude, longitude);
+      setWeather(weatherData);
+      setWeatherError(null);
+    } catch (error) {
+      console.error('Error loading location/weather:', error);
+      setWeatherError('Failed to load weather data');
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
   const hasCompletedProfile = profile?.first_name && profile?.mobility_level;
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Leaf size={40} color={colors.primary} />
-        </View>
-        <Text style={styles.title}>
-          {loading ? 'Welcome' : hasCompletedProfile ? `Welcome, ${profile.first_name}!` : 'Welcome to NatureUP Health'}
-        </Text>
-        <Text style={styles.subtitle}>Your personalized nature therapy companion</Text>
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
+    );
+  }
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      ) : !hasCompletedProfile ? (
+  if (!hasCompletedProfile) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.setupPrompt}>
-          <Text style={styles.setupTitle}>Complete Your Profile</Text>
+          <Text style={styles.setupTitle}>Welcome to NatureUP Health</Text>
           <Text style={styles.setupText}>
-            Let us personalize your experience by completing your health profile
+            Complete your profile to get started with personalized nature experiences
           </Text>
           <TouchableOpacity
             style={styles.setupButton}
             onPress={() => router.push('/(tabs)/profile-setup')}
           >
-            <Text style={styles.setupButtonText}>Set Up Profile</Text>
+            <Text style={styles.setupButtonText}>Complete Profile</Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {weatherLoading ? (
+        <View style={styles.weatherLoadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading weather...</Text>
+        </View>
+      ) : weatherError ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{weatherError}</Text>
+        </View>
+      ) : weather ? (
         <>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionGrid}>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/(tabs)/excursions')}
-              >
-                <Map size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>Find Excursion</Text>
-                <Text style={styles.actionSubtitle}>Discover nature near you</Text>
-              </TouchableOpacity>
+          <CurrentConditions weather={weather.current} />
 
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push('/(tabs)/profile')}
-              >
-                <UserIcon size={32} color={colors.primary} />
-                <Text style={styles.actionTitle}>My Profile</Text>
-                <Text style={styles.actionSubtitle}>View your progress</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <TouchableOpacity
+            style={styles.forecastButton}
+            onPress={() => setShowForecast(!showForecast)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forecastButtonText}>24-Hour Forecast</Text>
+            {showForecast ? (
+              <ChevronUp size={20} color={colors.primary} />
+            ) : (
+              <ChevronDown size={20} color={colors.primary} />
+            )}
+          </TouchableOpacity>
 
-          {profile?.health_goals && profile.health_goals.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your Health Goals</Text>
-              <View style={styles.goalsContainer}>
-                {profile.health_goals.map((goal, index) => (
-                  <View key={index} style={styles.goalChip}>
-                    <Text style={styles.goalText}>{goal}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+          {showForecast && (
+            <HourlyForecast forecasts={weather.hourly} />
           )}
         </>
+      ) : null}
+
+      {location && (
+        <View style={styles.mapSection}>
+          <LocationMap latitude={location.latitude} longitude={location.longitude} />
+        </View>
       )}
+
+      <TouchableOpacity
+        style={styles.createButton}
+        onPress={() => router.push('/(tabs)/excursions')}
+        activeOpacity={0.8}
+      >
+        <Plus size={24} color={colors.surface} strokeWidth={2.5} />
+        <Text style={styles.createButtonText}>Create</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -117,65 +158,42 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingHorizontal: 24,
-    paddingVertical: 48,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 24,
+    paddingBottom: 32,
+    gap: 16,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
+  centerContainer: {
+    flex: 1,
     justifyContent: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    paddingVertical: 48,
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   setupPrompt: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 24,
+    padding: 32,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
+    marginTop: 40,
   },
   setupTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: colors.text.primary,
     marginBottom: 12,
+    textAlign: 'center',
   },
   setupText: {
-    fontSize: 14,
+    fontSize: 16,
     color: colors.text.secondary,
     textAlign: 'center',
     marginBottom: 24,
+    lineHeight: 24,
   },
   setupButton: {
     backgroundColor: colors.primary,
@@ -188,57 +206,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.surface,
   },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text.primary,
-    marginBottom: 16,
-  },
-  actionGrid: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionCard: {
-    flex: 1,
+  weatherLoadingContainer: {
+    padding: 40,
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text.primary,
+  loadingText: {
     marginTop: 12,
-    marginBottom: 4,
-  },
-  actionSubtitle: {
-    fontSize: 12,
+    fontSize: 16,
     color: colors.text.secondary,
+  },
+  errorContainer: {
+    padding: 20,
+    backgroundColor: colors.errorBackground,
+    borderRadius: 12,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
     textAlign: 'center',
   },
-  goalsContainer: {
+  forecastButton: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  goalChip: {
-    backgroundColor: colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  goalText: {
-    fontSize: 14,
-    color: colors.surface,
+  forecastButtonText: {
+    fontSize: 16,
     fontWeight: '600',
+    color: colors.primary,
+  },
+  mapSection: {
+    marginTop: 8,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 8,
+  },
+  createButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.surface,
   },
 });
