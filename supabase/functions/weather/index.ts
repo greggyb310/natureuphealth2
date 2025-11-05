@@ -50,9 +50,15 @@ Deno.serve(async (req: Request) => {
       throw new Error("OpenWeather API key not configured in Supabase secrets");
     }
 
-    const { lat, lng }: WeatherRequest = await req.json();
-    if (!lat || !lng) {
-      throw new Error("Latitude and longitude are required");
+    const body = await req.json();
+    console.log("Received request body:", body);
+
+    const { lat, lng }: WeatherRequest = body;
+
+    console.log("Parsed coordinates:", { lat, lng, latType: typeof lat, lngType: typeof lng });
+
+    if (!lat || !lng || typeof lat !== 'number' || typeof lng !== 'number') {
+      throw new Error(`Invalid coordinates received - lat: ${lat} (${typeof lat}), lng: ${lng} (${typeof lng})`);
     }
 
     const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${openWeatherApiKey}`;

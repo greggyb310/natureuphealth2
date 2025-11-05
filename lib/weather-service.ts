@@ -39,6 +39,11 @@ class WeatherService {
 
   async getWeather(lat: number, lng: number): Promise<WeatherData> {
     try {
+      if (!lat || !lng || typeof lat !== 'number' || typeof lng !== 'number') {
+        console.error('Invalid coordinates:', { lat, lng, latType: typeof lat, lngType: typeof lng });
+        throw new Error('Valid latitude and longitude are required');
+      }
+
       const session = await supabase.auth.getSession();
       if (!session.data.session) {
         throw new Error('Not authenticated');
@@ -52,20 +57,20 @@ class WeatherService {
       }
 
       const url = this.getWeatherFunctionUrl();
+      const payload = { lat, lng };
       console.log('Calling weather API:', url);
-      console.log('Request payload:', { lat, lng });
+      console.log('Request payload:', payload);
 
       const headers = {
         'Authorization': `Bearer ${session.data.session.access_token}`,
         'apikey': anonKey,
         'Content-Type': 'application/json',
       };
-      console.log('Request headers:', headers);
 
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ lat, lng }),
+        body: JSON.stringify(payload),
       });
 
       console.log('Weather API response status:', response.status);
