@@ -44,11 +44,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: undefined,
+      },
     });
-    return { error };
+
+    if (error) {
+      return { error };
+    }
+
+    if (data?.user && !data.session) {
+      return {
+        error: new Error('Please check your email to confirm your account before signing in.')
+      };
+    }
+
+    return { error: null };
   };
 
   const signOut = async () => {
