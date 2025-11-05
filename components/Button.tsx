@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   primaryButton: {
-    backgroundColor: '#4A7C2E',
+    backgroundColor: '#FF8C42',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
