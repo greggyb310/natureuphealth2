@@ -74,13 +74,14 @@ class WeatherService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Weather API error response:', errorText);
+        console.error('Weather API status:', response.status);
         let error;
         try {
           error = JSON.parse(errorText);
         } catch {
           error = { error: errorText };
         }
-        throw new Error(error.error || 'Failed to fetch weather data');
+        throw new Error(error.error || `Failed to fetch weather data (${response.status})`);
       }
 
       const data = await response.json();

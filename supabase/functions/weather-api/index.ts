@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
   try {
     const openWeatherApiKey = Deno.env.get("OPENWEATHER_API_KEY");
     if (!openWeatherApiKey) {
-      throw new Error("OpenWeather API key not configured");
+      throw new Error("OpenWeather API key not configured in Supabase secrets");
     }
 
     const { lat, lng }: WeatherRequest = await req.json();
@@ -63,8 +63,16 @@ Deno.serve(async (req: Request) => {
       fetch(forecastUrl),
     ]);
 
-    if (!currentResponse.ok || !forecastResponse.ok) {
-      throw new Error("Failed to fetch weather data");
+    if (!currentResponse.ok) {
+      const errorData = await currentResponse.json();
+      console.error("OpenWeather current API error:", errorData);
+      throw new Error(`OpenWeather API error: ${errorData.message || currentResponse.statusText}`);
+    }
+
+    if (!forecastResponse.ok) {
+      const errorData = await forecastResponse.json();
+      console.error("OpenWeather forecast API error:", errorData);
+      throw new Error(`OpenWeather API error: ${errorData.message || forecastResponse.statusText}`);
     }
 
     const currentData = await currentResponse.json();
