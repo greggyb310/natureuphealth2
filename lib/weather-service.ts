@@ -53,12 +53,14 @@ class WeatherService {
 
       const url = this.getWeatherFunctionUrl();
       console.log('Calling weather API:', url);
+      console.log('Request payload:', { lat, lng });
 
       const headers = {
         'Authorization': `Bearer ${session.data.session.access_token}`,
         'apikey': anonKey,
         'Content-Type': 'application/json',
       };
+      console.log('Request headers:', headers);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -67,6 +69,7 @@ class WeatherService {
       });
 
       console.log('Weather API response status:', response.status);
+      console.log('Weather API response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
