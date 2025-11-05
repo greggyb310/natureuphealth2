@@ -22,6 +22,8 @@ export function Input({ label, error, style, ...props }: InputProps) {
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         placeholderTextColor="#999999"
+        editable={true}
+        contextMenuHidden={false}
         {...props}
       />
       {error && <Text style={styles.errorText}>{error}</Text>}
