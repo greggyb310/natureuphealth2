@@ -74,14 +74,15 @@ export default function ProfileSetupScreen() {
 
     const { error } = await supabase
       .from('user_profiles')
-      .update({
+      .upsert({
+        id: user.id,
+        email: user.email!,
         first_name: firstName,
         last_name: lastName || null,
         health_goals: healthGoals.length > 0 ? healthGoals : null,
         mobility_level: mobilityLevel,
         preferred_activities: preferredActivities.length > 0 ? preferredActivities : null,
-      })
-      .eq('id', user.id);
+      });
 
     if (error) {
       setError(error.message);
