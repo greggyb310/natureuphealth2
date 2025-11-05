@@ -44,11 +44,19 @@ class WeatherService {
         throw new Error('Not authenticated');
       }
 
+      const anonKey =
+        Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+      if (!anonKey) {
+        throw new Error('Supabase Anon key not configured');
+      }
+
       const url = this.getWeatherFunctionUrl();
       console.log('Calling weather API:', url);
 
       const headers = {
         'Authorization': `Bearer ${session.data.session.access_token}`,
+        'apikey': anonKey,
         'Content-Type': 'application/json',
       };
 
