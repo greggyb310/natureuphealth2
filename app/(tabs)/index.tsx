@@ -51,12 +51,14 @@ export default function HomeScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setWeatherError('Location permission denied');
+        setWeatherError('Location access needed for weather');
         setWeatherLoading(false);
         return;
       }
 
-      const locationData = await Location.getCurrentPositionAsync({});
+      const locationData = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
       const { latitude, longitude } = locationData.coords;
       setLocation({ latitude, longitude });
 
@@ -65,7 +67,8 @@ export default function HomeScreen() {
       setWeatherError(null);
     } catch (error) {
       console.error('Error loading location/weather:', error);
-      setWeatherError('Failed to load weather data');
+      const errorMessage = error instanceof Error ? error.message : 'Unable to load weather';
+      setWeatherError(errorMessage);
     } finally {
       setWeatherLoading(false);
     }
