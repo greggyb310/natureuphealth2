@@ -31,8 +31,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "EXPO_PUBLIC_SUPABASE_URL": "https://ccehhjnuhhuplvtquatk.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjZWhoam51aGh1cGx2dHF1YXRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIyNzQ0NTIsImV4cCI6MjA3Nzg1MDQ1Mn0.QQUzgLbE3ms1WlJgJbIlxaQsc3c1KM4CszmSFddrWyk"
+      "EXPO_PUBLIC_SUPABASE_URL": "https://uujgkixjnrnhqcrejnau.supabase.co",
+      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV1amdraXhqbnJuaHFjcmVqbmF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NTIyNTcsImV4cCI6MjA3NTUyODI1N30.TAMTQZ5dYwTs3s2dCU79lkzXx2U_t1ZjnthUiK3fUWo"
     }
   }
 }
