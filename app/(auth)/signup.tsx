@@ -66,6 +66,7 @@ export default function SignupScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="username"
             />
 
             <Input
@@ -76,6 +77,7 @@ export default function SignupScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password-new"
+              textContentType="newPassword"
             />
 
             <Input
@@ -86,6 +88,7 @@ export default function SignupScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password-new"
+              textContentType="newPassword"
             />
 
             {error ? <Text style={styles.error}>{error}</Text> : null}

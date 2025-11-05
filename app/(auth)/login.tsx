@@ -55,6 +55,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="username"
             />
 
             <Input
@@ -65,6 +66,7 @@ export default function LoginScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoComplete="password"
+              textContentType="password"
             />
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
