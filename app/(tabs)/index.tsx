@@ -73,9 +73,11 @@ export default function HomeScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       console.log('Location data received:', locationData);
+      console.log('Raw coords:', locationData.coords);
 
-      const { latitude, longitude } = locationData.coords;
-      console.log('Extracted coordinates:', { latitude, longitude, latType: typeof latitude, lngType: typeof longitude });
+      const latitude = Number(locationData.coords.latitude);
+      const longitude = Number(locationData.coords.longitude);
+      console.log('Parsed coordinates:', { latitude, longitude, latType: typeof latitude, lngType: typeof longitude });
 
       setLocation({ latitude, longitude });
 
