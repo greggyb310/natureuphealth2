@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import Constants from 'expo-constants';
 
 export type AssistantType = 'health_coach' | 'excursion_creator';
 
@@ -38,7 +39,9 @@ export interface ChatResponse {
 
 class AssistantsAPI {
   private getEdgeFunctionUrl(assistantType: AssistantType): string {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseUrl =
+      Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL ||
+      process.env.EXPO_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl) {
       throw new Error('Supabase URL not configured');
     }
