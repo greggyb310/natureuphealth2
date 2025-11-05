@@ -72,7 +72,7 @@ export default function ProfileSetupScreen() {
       return;
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('user_profiles')
       .upsert({
         id: user.id,
@@ -82,13 +82,20 @@ export default function ProfileSetupScreen() {
         health_goals: healthGoals.length > 0 ? healthGoals : null,
         mobility_level: mobilityLevel,
         preferred_activities: preferredActivities.length > 0 ? preferredActivities : null,
-      });
+      })
+      .select()
+      .single();
 
     if (error) {
+      console.error('Profile save error:', error);
       setError(error.message);
       setLoading(false);
-    } else {
+    } else if (data) {
+      console.log('Profile saved successfully:', data);
       router.replace('/(tabs)');
+    } else {
+      setError('Failed to save profile');
+      setLoading(false);
     }
   };
 

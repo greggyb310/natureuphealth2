@@ -28,8 +28,10 @@ export default function HomeScreen() {
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
-    loadProfile();
-    loadLocation();
+    if (user) {
+      loadProfile();
+      loadLocation();
+    }
   }, [user]);
 
   const loadProfile = async () => {
@@ -41,8 +43,15 @@ export default function HomeScreen() {
       .eq('id', user.id)
       .maybeSingle();
 
+    if (error) {
+      console.error('Error loading profile:', error);
+    }
+
     if (data) {
+      console.log('Profile loaded:', data);
       setProfile(data);
+    } else {
+      console.log('No profile data found');
     }
     setLoading(false);
   };
