@@ -58,24 +58,38 @@ export default function HomeScreen() {
 
   const loadLocation = async () => {
     try {
+      console.log('Starting location request...');
       const { status } = await Location.requestForegroundPermissionsAsync();
+      console.log('Location permission status:', status);
+
       if (status !== 'granted') {
         setWeatherError('Location access needed for weather');
         setWeatherLoading(false);
         return;
       }
 
+      console.log('Getting current position...');
       const locationData = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      console.log('Location data received:', locationData);
+
       const { latitude, longitude } = locationData.coords;
+      console.log('Extracted coordinates:', { latitude, longitude, latType: typeof latitude, lngType: typeof longitude });
+
       setLocation({ latitude, longitude });
 
+      console.log('Calling weather service with:', latitude, longitude);
       const weatherData = await weatherService.getWeather(latitude, longitude);
+      console.log('Weather data received successfully');
       setWeather(weatherData);
       setWeatherError(null);
     } catch (error) {
       console.error('Error loading location/weather:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
       const errorMessage = error instanceof Error ? error.message : 'Unable to load weather';
       setWeatherError(errorMessage);
     } finally {
