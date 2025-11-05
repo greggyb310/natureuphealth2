@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MapPin } from 'lucide-react-native';
 import { colors } from '@/lib/colors';
 
@@ -24,10 +25,23 @@ export function LocationMap({ latitude, longitude }: LocationMapProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapPlaceholder}>
-        <MapPin size={48} color={colors.primary} />
-        <Text style={styles.placeholderText}>Map loading...</Text>
-      </View>
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_DEFAULT}
+        initialRegion={{
+          latitude,
+          longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        showsUserLocation
+        showsMyLocationButton
+      >
+        <Marker
+          coordinate={{ latitude, longitude }}
+          title="Your Location"
+        />
+      </MapView>
     </View>
   );
 }
@@ -44,13 +58,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  webMapPlaceholder: {
+  map: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
   },
-  mapPlaceholder: {
+  webMapPlaceholder: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
