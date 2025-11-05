@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { MapPin } from 'lucide-react-native';
 import { colors } from '@/lib/colors';
 
@@ -22,6 +21,9 @@ export function LocationMap({ latitude, longitude }: LocationMapProps) {
       </View>
     );
   }
+
+  const MapView = require('react-native-maps').default;
+  const { Marker, PROVIDER_DEFAULT } = require('react-native-maps');
 
   return (
     <View style={styles.container}>
