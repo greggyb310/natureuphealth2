@@ -46,11 +46,7 @@ class AssistantsAPI {
       throw new Error('Supabase URL not configured');
     }
 
-    const functionName = assistantType === 'health_coach'
-      ? 'health-coach-assistant'
-      : 'excursion-creator-assistant';
-
-    return `${supabaseUrl}/functions/v1/${functionName}`;
+    return `${supabaseUrl}/functions/v1/assistant-chat`;
   }
 
   async sendMessage(
@@ -82,6 +78,7 @@ class AssistantsAPI {
       message,
       conversationId,
       userContext,
+      assistantType,
     });
 
     const response = await fetch(url, {

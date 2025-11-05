@@ -34,7 +34,7 @@ class WeatherService {
     if (!supabaseUrl) {
       throw new Error('Supabase URL not configured');
     }
-    return `${supabaseUrl}/functions/v1/weather-api`;
+    return `${supabaseUrl}/functions/v1/weather`;
   }
 
   async getWeather(lat: number, lng: number): Promise<WeatherData> {
