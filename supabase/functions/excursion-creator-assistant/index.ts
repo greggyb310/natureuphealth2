@@ -187,9 +187,9 @@ Deno.serve(async (req: Request) => {
       throw new Error("Failed to add message to thread");
     }
 
-    const assistantId = Deno.env.get("EXCURSION_CREATOR_ASSISTANT_ID");
+    const assistantId = Deno.env.get("EXCURSION_ENGINE_ASSISTANT_ID");
     if (!assistantId) {
-      throw new Error("Excursion Creator Assistant ID not configured");
+      throw new Error("Excursion Engine Assistant ID not configured");
     }
 
     const runResponse = await fetch(
