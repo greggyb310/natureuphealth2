@@ -51,8 +51,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const { lat, lng }: WeatherRequest = await req.json();
-    if (!lat || !lng) {
+    console.log('Received coordinates:', { lat, lng, latType: typeof lat, lngType: typeof lng });
+
+    if (lat === undefined || lat === null || lng === undefined || lng === null) {
       throw new Error("Latitude and longitude are required");
+    }
+
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      throw new Error("Latitude and longitude must be numbers");
     }
 
     const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${openWeatherApiKey}`;
