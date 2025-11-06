@@ -51,18 +51,28 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    console.log("Received request body:", body);
+    console.log("=== WEATHER FUNCTION v2 ===");
+    console.log("Received request body:", JSON.stringify(body));
 
     const { lat, lng }: WeatherRequest = body;
 
-    console.log("Parsed coordinates:", { lat, lng, latType: typeof lat, lngType: typeof lng });
+    console.log("Extracted values:", { lat, lng });
+    console.log("Types:", { latType: typeof lat, lngType: typeof lng });
+    console.log("Checks:", {
+      latUndefined: lat === undefined,
+      latNull: lat === null,
+      lngUndefined: lng === undefined,
+      lngNull: lng === null,
+      latIsNumber: typeof lat === 'number',
+      lngIsNumber: typeof lng === 'number'
+    });
 
     if (lat === undefined || lat === null || lng === undefined || lng === null) {
-      throw new Error("Latitude and longitude are required");
+      throw new Error(`Missing coordinates - lat: ${lat}, lng: ${lng}`);
     }
 
     if (typeof lat !== 'number' || typeof lng !== 'number') {
-      throw new Error(`Latitude and longitude must be numbers - received lat: ${lat} (${typeof lat}), lng: ${lng} (${typeof lng})`);
+      throw new Error(`Invalid coordinate types - lat: ${typeof lat}, lng: ${typeof lng}`);
     }
 
     const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${openWeatherApiKey}`;
