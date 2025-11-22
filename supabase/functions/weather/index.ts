@@ -7,8 +7,11 @@ const corsHeaders = {
 };
 
 interface WeatherRequest {
-  lat: number;
-  lng: number;
+  latitude?: number;
+  longitude?: number;
+  lat?: number;
+  lng?: number;
+  lon?: number;
 }
 
 interface CurrentWeather {
@@ -51,32 +54,52 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    console.log("=== WEATHER FUNCTION v2 ===");
-    console.log("Received request body:", JSON.stringify(body));
+    console.log("=== WEATHER FUNCTION ===");
+    console.log("Received raw body:", JSON.stringify(body));
+    console.log("Body keys:", Object.keys(body));
 
-    const { lat, lng }: WeatherRequest = body;
+    const requestData: WeatherRequest = body;
 
-    console.log("Extracted values:", { lat, lng });
-    console.log("Types:", { latType: typeof lat, lngType: typeof lng });
-    console.log("Checks:", {
-      latUndefined: lat === undefined,
-      latNull: lat === null,
-      lngUndefined: lng === undefined,
-      lngNull: lng === null,
-      latIsNumber: typeof lat === 'number',
-      lngIsNumber: typeof lng === 'number'
+    // Accept multiple field name formats with fallbacks
+    const latitude = requestData.latitude ?? requestData.lat;
+    const longitude = requestData.longitude ?? requestData.lng ?? requestData.lon;
+
+    console.log("Extracted coordinates:", { latitude, longitude });
+    console.log("Original body fields:", {
+      hasLatitude: 'latitude' in body,
+      hasLongitude: 'longitude' in body,
+      hasLat: 'lat' in body,
+      hasLng: 'lng' in body,
+      hasLon: 'lon' in body
+    });
+    console.log("Coordinate types:", {
+      latType: typeof latitude,
+      lngType: typeof longitude
     });
 
-    if (lat === undefined || lat === null || lng === undefined || lng === null) {
-      throw new Error(`Missing coordinates - lat: ${lat}, lng: ${lng}`);
+    if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
+      console.error("Missing coordinates!", {
+        latitude,
+        longitude,
+        receivedBody: JSON.stringify(body)
+      });
+      throw new Error(`Latitude and longitude are required. Received: ${JSON.stringify(body)}`);
     }
 
-    if (typeof lat !== 'number' || typeof lng !== 'number') {
-      throw new Error(`Invalid coordinate types - lat: ${typeof lat}, lng: ${typeof lng}`);
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      console.error("Invalid coordinate types!", {
+        latType: typeof latitude,
+        lngType: typeof longitude,
+        latitude,
+        longitude
+      });
+      throw new Error(`Invalid coordinate types - latitude: ${typeof latitude}, longitude: ${typeof longitude}`);
     }
 
-    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&units=imperial&appid=${openWeatherApiKey}`;
-    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&units=imperial&appid=${openWeatherApiKey}`;
+    console.log("Making OpenWeather API calls with:", { latitude, longitude });
+
+    const currentWeatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${openWeatherApiKey}`;
+    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&units=imperial&appid=${openWeatherApiKey}`;
 
     const [currentResponse, forecastResponse] = await Promise.all([
       fetch(currentWeatherUrl),

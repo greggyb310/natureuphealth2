@@ -69,9 +69,18 @@ class WeatherService {
         throw new Error('Valid latitude and longitude are required');
       }
 
-      const payload = { lat, lng };
+      const payload = {
+        latitude: lat,
+        longitude: lng
+      };
       console.log('=== WEATHER SERVICE CALL ===');
-      console.log('Calling weather edge function with:', payload);
+      console.log('SENDING WEATHER REQUEST with payload:', JSON.stringify(payload));
+      console.log('Payload structure:', {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        latType: typeof payload.latitude,
+        lngType: typeof payload.longitude
+      });
       console.log('Function name: weather');
 
       const { data, error } = await supabase.functions.invoke('weather', {
