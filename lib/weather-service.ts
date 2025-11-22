@@ -70,14 +70,27 @@ class WeatherService {
       }
 
       const payload = { lat, lng };
-      console.log('Calling weather service with:', payload);
+      console.log('=== WEATHER SERVICE CALL ===');
+      console.log('Calling weather edge function with:', payload);
+      console.log('Function name: weather');
 
       const { data, error } = await supabase.functions.invoke('weather', {
         body: payload,
       });
 
+      console.log('Edge function response:', {
+        hasData: !!data,
+        hasError: !!error,
+        dataType: typeof data,
+        errorType: typeof error
+      });
+
       if (error) {
-        console.error('Weather API error:', error);
+        console.error('=== EDGE FUNCTION ERROR ===');
+        console.error('Error object:', JSON.stringify(error, null, 2));
+        console.error('Error message:', error.message);
+        console.error('Error context:', error.context);
+        console.error('Full error:', error);
 
         // In development, use mock data as fallback
         if (__DEV__) {
@@ -89,13 +102,20 @@ class WeatherService {
       }
 
       if (!data) {
+        console.error('No data received from edge function');
         throw new Error('No weather data received');
       }
 
-      console.log('Weather data received:', data);
+      console.log('Weather data received successfully:', data);
       return data;
     } catch (error) {
-      console.error('Weather service error:', error);
+      console.error('=== WEATHER SERVICE CATCH BLOCK ===');
+      console.error('Caught error:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
 
       // In development, use mock data as fallback
       if (__DEV__) {

@@ -87,12 +87,15 @@ export default function HomeScreen() {
       setWeather(weatherData);
       setWeatherError(null);
     } catch (error) {
+      console.error('=== HOME SCREEN WEATHER ERROR ===');
       console.error('Error loading location/weather:', error);
       if (error instanceof Error) {
+        console.error('Error name:', error.name);
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
       }
       const errorMessage = error instanceof Error ? error.message : 'Unable to load weather';
+      console.error('Setting weather error state:', errorMessage);
       setWeatherError(errorMessage);
     } finally {
       setWeatherLoading(false);
