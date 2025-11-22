@@ -18,6 +18,240 @@ interface RequestBody {
   sessionSummary?: any;
 }
 
+type TerrainIntensity = 'flat' | 'rolling' | 'hilly';
+type EnergyLevel = 'low' | 'medium' | 'high';
+
+interface CandidateLocation {
+  id: string;
+  name: string;
+  description?: string;
+  coordinates: { latitude: number; longitude: number };
+  estimated_travel_minutes_one_way: number;
+  travel_mode: 'walking' | 'driving';
+  tags: string[];
+  source: 'map_api' | 'user_custom';
+  terrain_intensity?: TerrainIntensity;
+}
+
+function decideTravelMode(
+  time_available_minutes: number,
+  energy_level: EnergyLevel,
+  mobility_level?: 'full' | 'limited' | 'assisted' | null
+): 'walking' | 'driving' {
+  if (time_available_minutes <= 20) return 'walking';
+  if (mobility_level === 'limited' || mobility_level === 'assisted') return 'walking';
+  if (time_available_minutes >= 45 && energy_level !== 'low') return 'driving';
+  return 'walking';
+}
+
+function computeSearchRadiusMeters(
+  travelMode: 'walking' | 'driving',
+  oneWayTravelBudgetMinutes: number
+): number {
+  const kmPerMinWalking = 0.075;
+  const kmPerMinDriving = 0.6;
+  const km = travelMode === 'walking'
+    ? kmPerMinWalking * oneWayTravelBudgetMinutes
+    : kmPerMinDriving * oneWayTravelBudgetMinutes;
+  return Math.max(km * 1000, 500);
+}
+
+function distanceInKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function isWithinRadiusMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  radiusMeters: number
+): boolean {
+  return distanceInKm(lat1, lon1, lat2, lon2) * 1000 <= radiusMeters;
+}
+
+function estimateTravelTimeMinutes(
+  from: { latitude: number; longitude: number },
+  to: { latitude: number; longitude: number },
+  mode: 'walking' | 'driving'
+): number {
+  const km = distanceInKm(from.latitude, from.longitude, to.latitude, to.longitude);
+  const kmPerMinWalking = 0.075;
+  const kmPerMinDriving = 0.6;
+  const speed = mode === 'walking' ? kmPerMinWalking : kmPerMinDriving;
+  return km / speed;
+}
+
+function scoreTerrain(
+  loc: CandidateLocation,
+  energy_level: EnergyLevel,
+  fitness_level?: string | null,
+  mobility_level?: string | null
+): number {
+  const { terrain_intensity } = loc;
+  if (!terrain_intensity) return 0;
+
+  if (mobility_level === 'limited' || mobility_level === 'assisted') {
+    if (terrain_intensity !== 'flat') return -1000;
+  }
+
+  if (energy_level === 'high') {
+    if (terrain_intensity === 'hilly') return 3;
+    if (terrain_intensity === 'rolling') return 2;
+    if (terrain_intensity === 'flat') return 1;
+  }
+
+  if (energy_level === 'medium') {
+    if (terrain_intensity === 'rolling') return 3;
+    if (terrain_intensity === 'flat') return 2;
+    if (terrain_intensity === 'hilly') {
+      return fitness_level === 'advanced' ? 1 : -1;
+    }
+  }
+
+  if (energy_level === 'low') {
+    if (terrain_intensity === 'flat') return 3;
+    if (terrain_intensity === 'rolling') return 1;
+    if (terrain_intensity === 'hilly') return -2;
+  }
+
+  return 0;
+}
+
+function scoreTags(tags: string[], goal: string): number {
+  let score = 0;
+  const hasWater = tags.some(t => ['water', 'lake', 'river'].includes(t));
+  const hasTrail = tags.some(t => ['trail', 'path'].includes(t));
+  const hasQuiet = tags.some(t => ['quiet', 'peaceful'].includes(t));
+  const hasPark = tags.some(t => ['park', 'garden'].includes(t));
+  const hasTrees = tags.some(t => ['trees', 'forest'].includes(t));
+
+  if (goal === 'relax') {
+    if (hasWater) score += 2;
+    if (hasQuiet) score += 2;
+    if (hasTrees) score += 1;
+  } else if (goal === 'recharge') {
+    if (hasTrail) score += 2;
+    if (hasPark) score += 1;
+    if (hasTrees) score += 1;
+  } else if (goal === 'reflect') {
+    if (hasQuiet) score += 2;
+    if (hasWater) score += 1;
+    if (hasTrees) score += 1;
+  } else if (goal === 'connect' || goal === 'creativity') {
+    if (hasWater || hasQuiet || hasTrail) score += 1;
+    if (hasPark) score += 1;
+  }
+
+  return score;
+}
+
+async function pickCandidateLocations(
+  supabase: any,
+  currentData: any,
+  historicalData?: any
+): Promise<CandidateLocation[]> {
+  const {
+    location,
+    time_available_minutes,
+    energy_level,
+    goal,
+  } = currentData;
+  const mobility_level = historicalData?.mobility_level ?? null;
+  const fitness_level = historicalData?.fitness_level ?? null;
+
+  const travelRatio = 0.4;
+  const travelBudgetMinutes = time_available_minutes * travelRatio;
+  const oneWayTravelBudget = travelBudgetMinutes / 2;
+
+  const travelMode = decideTravelMode(
+    time_available_minutes,
+    energy_level,
+    mobility_level
+  );
+
+  const radiusMeters = computeSearchRadiusMeters(
+    travelMode,
+    oneWayTravelBudget
+  );
+
+  console.log('Location search:', { travelMode, radiusMeters, oneWayTravelBudget });
+
+  const { data: customSpots, error: customError } = await supabase
+    .from('custom_nature_locations')
+    .select('*');
+
+  if (customError) {
+    console.error('custom_nature_locations error', customError);
+  }
+
+  const nearbyCustom: CandidateLocation[] = (customSpots ?? [])
+    .filter((spot: any) =>
+      isWithinRadiusMeters(
+        location.latitude,
+        location.longitude,
+        spot.latitude,
+        spot.longitude,
+        radiusMeters
+      )
+    )
+    .map((spot: any) => ({
+      id: spot.id,
+      name: spot.name,
+      description: spot.description ?? undefined,
+      coordinates: { latitude: spot.latitude, longitude: spot.longitude },
+      estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
+        location,
+        { latitude: spot.latitude, longitude: spot.longitude },
+        travelMode
+      ),
+      travel_mode: travelMode,
+      tags: spot.tags ?? [],
+      source: 'user_custom' as const,
+      terrain_intensity: 'flat' as TerrainIntensity,
+    }));
+
+  console.log('Found custom locations:', nearbyCustom.length);
+
+  let allCandidates = [...nearbyCustom];
+
+  const scored = allCandidates
+    .filter((loc) => {
+      const totalTravel = loc.estimated_travel_minutes_one_way * 2;
+      return totalTravel <= time_available_minutes * 0.9;
+    })
+    .map((loc) => {
+      const distKm = distanceInKm(
+        location.latitude,
+        location.longitude,
+        loc.coordinates.latitude,
+        loc.coordinates.longitude
+      );
+      const distanceScore = -distKm;
+      const terrainScore = scoreTerrain(loc, energy_level, fitness_level, mobility_level);
+      const tagScore = scoreTags(loc.tags, goal);
+      return { loc, score: distanceScore + terrainScore + tagScore };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, 10).map((s) => s.loc);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -67,6 +301,31 @@ Deno.serve(async (req: Request) => {
     const { phase, sessionId, currentData, historicalData, selectedExcursion, currentZoneId, previousCheckIns, sessionSummary } = body;
 
     console.log("Excursion Engine request:", { phase, sessionId, userId: user.id });
+
+    let candidate_locations: CandidateLocation[] = [];
+
+    if (phase === "PLAN" && currentData) {
+      candidate_locations = await pickCandidateLocations(
+        supabase,
+        currentData,
+        historicalData
+      );
+
+      console.log('Candidate locations found:', candidate_locations.length);
+
+      if (candidate_locations.length === 0) {
+        return new Response(JSON.stringify({
+          phase: "PLAN",
+          reason: "no_locations_found",
+          message_for_user: "I can't find anything close enough that fits your time and access. Do you know a nearby spot—maybe a small park, office courtyard, or quiet place with some trees and benches we can use?"
+        }), {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+    }
 
     let conversation = await supabase
       .from("conversations")
@@ -120,6 +379,7 @@ Deno.serve(async (req: Request) => {
       phase,
       currentData,
       historicalData,
+      candidate_locations: phase === "PLAN" ? candidate_locations : undefined,
       selectedExcursion,
       currentZoneId,
       previousCheckIns,

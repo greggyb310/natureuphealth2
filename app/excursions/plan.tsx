@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/lib/colors';
 import { ExcursionPlanOption } from '@/types/excursions';
 import { supabase } from '@/lib/supabase';
-import { MapPin, Clock, TrendingUp, Check } from 'lucide-react-native';
+import { MapPin, Clock, TrendingUp, Check, AlertCircle, Plus } from 'lucide-react-native';
 
 export default function PlanSelectionScreen() {
   const router = useRouter();
@@ -12,7 +12,10 @@ export default function PlanSelectionScreen() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const plans: ExcursionPlanOption[] = params.plans
+  const noLocations = params.reason === 'no_locations_found';
+  const message = params.message ? (params.message as string) : null;
+
+  const plans: ExcursionPlanOption[] = params.plans && !noLocations
     ? JSON.parse(params.plans as string)
     : [];
 
@@ -94,6 +97,42 @@ export default function PlanSelectionScreen() {
         return colors.text.secondary;
     }
   };
+
+  const handleAddLocation = () => {
+    router.push({
+      pathname: '/excursions/add-location',
+      params: { returnTo: 'excursions' },
+    });
+  };
+
+  if (noLocations) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.centerContent}>
+          <View style={styles.iconCircle}>
+            <AlertCircle size={48} color={colors.primary} />
+          </View>
+          <Text style={styles.noLocationsTitle}>No Locations Found</Text>
+          <Text style={styles.noLocationsMessage}>
+            {message || "I can't find anything close enough that fits your time and access."}
+          </Text>
+          <Text style={styles.helpText}>
+            Do you know a nearby spot? Maybe a small park, office courtyard, or quiet place with some trees and benches?
+          </Text>
+          <TouchableOpacity style={styles.addLocationButton} onPress={handleAddLocation}>
+            <Plus size={20} color="#FFFFFF" />
+            <Text style={styles.addLocationButtonText}>Add a Location</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -338,5 +377,73 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  centerContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  iconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.primary + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  noLocationsTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  noLocationsMessage: {
+    fontSize: 16,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 16,
+    paddingHorizontal: 20,
+  },
+  helpText: {
+    fontSize: 15,
+    color: colors.text.primary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  addLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addLocationButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.secondary,
   },
 });

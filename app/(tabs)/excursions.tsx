@@ -200,12 +200,24 @@ export default function ExcursionsScreen() {
 
       const result = await excursionEngineAPI.plan(currentData, historicalData);
 
-      router.push({
-        pathname: '/excursions/plan',
-        params: {
-          plans: JSON.stringify(result.plan_options),
-        },
-      });
+      if (result.reason === 'no_locations_found') {
+        router.push({
+          pathname: '/excursions/plan',
+          params: {
+            reason: result.reason,
+            message: result.message_for_user,
+          },
+        });
+      } else if (result.plan_options) {
+        router.push({
+          pathname: '/excursions/plan',
+          params: {
+            plans: JSON.stringify(result.plan_options),
+          },
+        });
+      } else {
+        throw new Error('Invalid response from excursion engine');
+      }
     } catch (err) {
       console.error('Failed to generate excursions:', err);
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to generate excursions');

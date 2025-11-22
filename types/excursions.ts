@@ -66,9 +66,25 @@ export interface ExcursionPlanOption {
   packing_suggestions: string[];
 }
 
+export type TerrainIntensity = 'flat' | 'rolling' | 'hilly';
+
+export interface CandidateLocation {
+  id: string;
+  name: string;
+  description?: string;
+  coordinates: { latitude: number; longitude: number };
+  estimated_travel_minutes_one_way: number;
+  travel_mode: 'walking' | 'driving';
+  tags: string[];
+  source: 'map_api' | 'user_custom';
+  terrain_intensity?: TerrainIntensity;
+}
+
 export interface PlanResponse {
   phase: 'PLAN';
-  plan_options: ExcursionPlanOption[];
+  plan_options?: ExcursionPlanOption[];
+  reason?: 'no_locations_found';
+  message_for_user?: string;
 }
 
 export interface GuideCheckIn {

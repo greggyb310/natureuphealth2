@@ -101,6 +101,7 @@ export function ExcursionParameters({ value, onChange }: ExcursionParametersProp
     <View style={styles.container}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Duration</Text>
+        <Text style={styles.sectionHint}>Total time includes travel to and from location</Text>
         <View style={styles.durationGrid}>
           {DURATION_PRESETS.map((minutes) => (
             <TouchableOpacity
@@ -247,7 +248,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text.primary,
+    marginBottom: 4,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: colors.text.secondary,
     marginBottom: 12,
+    fontStyle: 'italic',
   },
   durationGrid: {
     flexDirection: 'row',
