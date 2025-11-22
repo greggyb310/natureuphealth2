@@ -1,0 +1,239 @@
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { useState } from 'react';
+import { colors } from '@/lib/colors';
+
+const DURATION_PRESETS = [5, 10, 15, 30, 45, 60];
+const GOALS = ['Relax', 'Energize', 'Center'] as const;
+
+type Goal = typeof GOALS[number];
+
+interface ExcursionParametersProps {
+  onParametersChange?: (params: {
+    duration: number;
+    goal: Goal | null;
+  }) => void;
+}
+
+export function ExcursionParameters({ onParametersChange }: ExcursionParametersProps) {
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+  const [customDuration, setCustomDuration] = useState('');
+  const [isCustom, setIsCustom] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+
+  const handlePresetDuration = (minutes: number) => {
+    setSelectedDuration(minutes);
+    setIsCustom(false);
+    setCustomDuration('');
+    onParametersChange?.({
+      duration: minutes,
+      goal: selectedGoal,
+    });
+  };
+
+  const handleCustomDuration = () => {
+    setIsCustom(true);
+    setSelectedDuration(null);
+  };
+
+  const handleCustomInput = (text: string) => {
+    const numericValue = text.replace(/[^0-9]/g, '');
+    setCustomDuration(numericValue);
+
+    const minutes = parseInt(numericValue, 10);
+    if (!isNaN(minutes) && minutes > 0) {
+      onParametersChange?.({
+        duration: minutes,
+        goal: selectedGoal,
+      });
+    }
+  };
+
+  const handleGoalSelect = (goal: Goal) => {
+    const newGoal = selectedGoal === goal ? null : goal;
+    setSelectedGoal(newGoal);
+    onParametersChange?.({
+      duration: isCustom ? parseInt(customDuration, 10) : (selectedDuration || 0),
+      goal: newGoal,
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Duration</Text>
+        <View style={styles.durationGrid}>
+          {DURATION_PRESETS.map((minutes) => (
+            <TouchableOpacity
+              key={minutes}
+              style={[
+                styles.durationButton,
+                selectedDuration === minutes && !isCustom && styles.durationButtonActive,
+              ]}
+              onPress={() => handlePresetDuration(minutes)}
+            >
+              <Text
+                style={[
+                  styles.durationButtonText,
+                  selectedDuration === minutes && !isCustom && styles.durationButtonTextActive,
+                ]}
+              >
+                {minutes} min
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={[
+              styles.durationButton,
+              isCustom && styles.durationButtonActive,
+            ]}
+            onPress={handleCustomDuration}
+          >
+            <Text
+              style={[
+                styles.durationButtonText,
+                isCustom && styles.durationButtonTextActive,
+              ]}
+            >
+              Custom
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {isCustom && (
+          <View style={styles.customInputContainer}>
+            <TextInput
+              style={styles.customInput}
+              placeholder="Enter minutes"
+              placeholderTextColor={colors.text.light}
+              keyboardType="numeric"
+              value={customDuration}
+              onChangeText={handleCustomInput}
+              maxLength={4}
+            />
+            <Text style={styles.customInputLabel}>minutes</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Goal</Text>
+        <View style={styles.goalGrid}>
+          {GOALS.map((goal) => (
+            <TouchableOpacity
+              key={goal}
+              style={[
+                styles.goalButton,
+                selectedGoal === goal && styles.goalButtonActive,
+              ]}
+              onPress={() => handleGoalSelect(goal)}
+            >
+              <Text
+                style={[
+                  styles.goalButtonText,
+                  selectedGoal === goal && styles.goalButtonTextActive,
+                ]}
+              >
+                {goal}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 24,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 12,
+  },
+  durationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  durationButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  durationButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  durationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  durationButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  customInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  customInput: {
+    flex: 1,
+    height: 44,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: colors.text.primary,
+  },
+  customInputLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    fontWeight: '500',
+  },
+  goalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  goalButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
+    flex: 1,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  goalButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  goalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  goalButtonTextActive: {
+    color: '#FFFFFF',
+  },
+});

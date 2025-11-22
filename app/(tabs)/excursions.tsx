@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { colors } from '@/lib/colors';
 import { ExcursionCard } from '@/components/ExcursionCard';
+import { ExcursionParameters } from '@/components/ExcursionParameters';
 import { supabase } from '@/lib/supabase';
 import { Plus } from 'lucide-react-native';
 
@@ -25,6 +26,10 @@ export default function ExcursionsScreen() {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [excursionParams, setExcursionParams] = useState<{
+    duration: number;
+    goal: 'Relax' | 'Energize' | 'Center' | null;
+  } | null>(null);
 
   useEffect(() => {
     loadExcursions();
@@ -126,8 +131,32 @@ export default function ExcursionsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Excursions</Text>
-        <Text style={styles.subtitle}>Personalized outdoor experiences near you</Text>
+        <Text style={styles.title}>Create Excursion</Text>
+        <Text style={styles.subtitle}>Set your preferences for a personalized outdoor experience</Text>
+      </View>
+
+      <ExcursionParameters
+        onParametersChange={(params) => {
+          setExcursionParams(params);
+          console.log('Excursion parameters:', params);
+        }}
+      />
+
+      {excursionParams && (
+        <View style={styles.selectedParams}>
+          <Text style={styles.selectedParamsTitle}>Selected:</Text>
+          <Text style={styles.selectedParamsText}>
+            {excursionParams.duration} minutes
+            {excursionParams.goal ? ` • ${excursionParams.goal}` : ''}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.divider} />
+
+      <View style={styles.header}>
+        <Text style={styles.title}>Your Excursions</Text>
+        <Text style={styles.subtitle}>Previously created outdoor experiences</Text>
       </View>
 
       {error && (
@@ -158,11 +187,11 @@ export default function ExcursionsScreen() {
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No excursions yet</Text>
           <Text style={styles.emptyText}>
-            Chat with your Health Coach to create personalized outdoor excursions
+            Set your preferences above and chat with your Health Coach to create your first excursion
           </Text>
           <TouchableOpacity style={styles.createButton} onPress={handleCreateExcursion}>
             <Plus size={20} color="#FFFFFF" />
-            <Text style={styles.createButtonText}>Create Excursion</Text>
+            <Text style={styles.createButtonText}>Start with Health Coach</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -242,5 +271,31 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  selectedParams: {
+    backgroundColor: colors.primary + '15',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  selectedParamsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  selectedParamsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: 32,
   },
 });
