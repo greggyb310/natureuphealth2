@@ -72,7 +72,7 @@ class WeatherService {
       const payload = { lat, lng };
       console.log('Calling weather service with:', payload);
 
-      const { data, error } = await supabase.functions.invoke('weather-v2', {
+      const { data, error } = await supabase.functions.invoke('weather', {
         body: payload,
       });
 
