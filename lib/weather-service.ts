@@ -79,9 +79,9 @@ class WeatherService {
       if (error) {
         console.error('Weather API error:', error);
 
-        // On web platform in development, use mock data as fallback
-        if (Platform.OS === 'web' && __DEV__) {
-          console.log('Using mock weather data for web preview');
+        // In development, use mock data as fallback
+        if (__DEV__) {
+          console.log('Using mock weather data as fallback');
           return this.getMockWeatherData();
         }
 
@@ -97,9 +97,9 @@ class WeatherService {
     } catch (error) {
       console.error('Weather service error:', error);
 
-      // On web platform in development, use mock data as fallback
-      if (Platform.OS === 'web' && __DEV__) {
-        console.log('Using mock weather data for web preview');
+      // In development, use mock data as fallback
+      if (__DEV__) {
+        console.log('Using mock weather data as fallback');
         return this.getMockWeatherData();
       }
 
