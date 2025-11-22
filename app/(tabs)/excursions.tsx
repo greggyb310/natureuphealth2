@@ -1,11 +1,14 @@
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import { colors } from '@/lib/colors';
 import { ExcursionCard } from '@/components/ExcursionCard';
-import { ExcursionParameters } from '@/components/ExcursionParameters';
+import { ExcursionParameters, ExcursionParametersValue } from '@/components/ExcursionParameters';
 import { supabase } from '@/lib/supabase';
-import { Plus } from 'lucide-react-native';
+import { excursionEngineAPI } from '@/lib/excursion-engine';
+import { CurrentData, HistoricalData, Goal, Mood, EnergyLevel } from '@/types/excursions';
+import { Sparkles, Plus } from 'lucide-react-native';
 
 interface Excursion {
   id: string;
@@ -25,11 +28,14 @@ export default function ExcursionsScreen() {
   const [excursions, setExcursions] = useState<Excursion[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [excursionParams, setExcursionParams] = useState<{
-    duration: number;
-    goal: 'Relax' | 'Energize' | 'Center' | null;
-  } | null>(null);
+  const [excursionParams, setExcursionParams] = useState<ExcursionParametersValue>({
+    duration: null,
+    goal: null,
+    mood: null,
+    energy: null,
+  });
 
   useEffect(() => {
     loadExcursions();
@@ -120,6 +126,94 @@ export default function ExcursionsScreen() {
     router.push('/(tabs)/health-coach');
   };
 
+  const mapUIToAPI = (ui: ExcursionParametersValue): { goal: Goal | null; mood: Mood | null; energy: EnergyLevel | null } => {
+    const goalMap: Record<string, Goal> = {
+      'Relax': 'relax',
+      'Recharge': 'recharge',
+      'Reflect': 'reflect',
+    };
+
+    const moodMap: Record<string, Mood> = {
+      'Stressed': 'stressed',
+      'Calm': 'calm',
+      'Anxious': 'anxious',
+      'Tired': 'tired',
+      'Energetic': 'energetic',
+      'Happy': 'happy',
+      'Sad': 'sad',
+    };
+
+    const energyMap: Record<string, EnergyLevel> = {
+      'Low': 'low',
+      'Medium': 'medium',
+      'High': 'high',
+    };
+
+    return {
+      goal: ui.goal ? goalMap[ui.goal] : null,
+      mood: ui.mood ? moodMap[ui.mood] : null,
+      energy: ui.energy ? energyMap[ui.energy] : null,
+    };
+  };
+
+  const handleGenerateExcursions = async () => {
+    if (!excursionParams.duration || !excursionParams.goal || !excursionParams.mood || !excursionParams.energy) {
+      Alert.alert('Missing Information', 'Please select duration, goal, mood, and energy level');
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setError(null);
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Location permission is needed to generate personalized excursions');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const mapped = mapUIToAPI(excursionParams);
+
+      const currentData: CurrentData = {
+        location: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        time_available_minutes: excursionParams.duration,
+        energy_level: mapped.energy!,
+        mood: mapped.mood!,
+        goal: mapped.goal!,
+      };
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .single();
+
+      const historicalData: HistoricalData = {
+        age: profile?.age,
+        mobility_level: profile?.mobility_level,
+        fitness_level: profile?.fitness_level,
+        preferred_activities: profile?.preferred_activities,
+      };
+
+      const result = await excursionEngineAPI.plan(currentData, historicalData);
+
+      router.push({
+        pathname: '/excursions/plan',
+        params: {
+          plans: JSON.stringify(result.plan_options),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to generate excursions:', err);
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to generate excursions');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -136,18 +230,37 @@ export default function ExcursionsScreen() {
       </View>
 
       <ExcursionParameters
-        onParametersChange={(params) => {
+        value={excursionParams}
+        onChange={(params) => {
           setExcursionParams(params);
-          console.log('Excursion parameters:', params);
         }}
       />
 
-      {excursionParams && (
+      {excursionParams.duration && excursionParams.goal && excursionParams.mood && excursionParams.energy && (
+        <TouchableOpacity
+          style={[styles.generateButton, generating && styles.generateButtonDisabled]}
+          onPress={handleGenerateExcursions}
+          disabled={generating}
+        >
+          {generating ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Sparkles size={20} color="#FFFFFF" />
+          )}
+          <Text style={styles.generateButtonText}>
+            {generating ? 'Generating...' : 'Generate Excursions'}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {excursionParams.duration && (
         <View style={styles.selectedParams}>
-          <Text style={styles.selectedParamsTitle}>Selected:</Text>
+          <Text style={styles.selectedParamsTitle}>Current Selection:</Text>
           <Text style={styles.selectedParamsText}>
-            {excursionParams.duration} minutes
+            {excursionParams.duration} min
             {excursionParams.goal ? ` • ${excursionParams.goal}` : ''}
+            {excursionParams.mood ? ` • ${excursionParams.mood}` : ''}
+            {excursionParams.energy ? ` • ${excursionParams.energy}` : ''}
           </Text>
         </View>
       )}
@@ -177,7 +290,10 @@ export default function ExcursionsScreen() {
               difficulty={excursion.difficulty_level || 'Easy'}
               isFavorite={favorites.has(excursion.id)}
               onPress={() => {
-                Alert.alert('Excursion Details', 'Detail view coming soon!');
+                router.push({
+                  pathname: '/excursions/[id]',
+                  params: { id: excursion.id },
+                });
               }}
               onFavoriteToggle={() => toggleFavorite(excursion.id)}
             />
@@ -297,5 +413,29 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.border.light,
     marginVertical: 32,
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  generateButtonDisabled: {
+    opacity: 0.6,
+  },
+  generateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

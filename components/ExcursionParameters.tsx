@@ -1,32 +1,46 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { useState } from 'react';
 import { colors } from '@/lib/colors';
+import { Mood, EnergyLevel, Goal } from '@/types/excursions';
 
 const DURATION_PRESETS = [5, 10, 15, 30, 45, 60];
-const GOALS = ['Relax', 'Energize', 'Center'] as const;
+const GOALS = ['Relax', 'Recharge', 'Reflect'] as const;
+const MOODS = ['Stressed', 'Calm', 'Anxious', 'Tired', 'Energetic', 'Happy', 'Sad'] as const;
+const ENERGY_LEVELS = ['Low', 'Medium', 'High'] as const;
 
-type Goal = typeof GOALS[number];
+type UIGoal = typeof GOALS[number];
+type UIMood = typeof MOODS[number];
+type UIEnergy = typeof ENERGY_LEVELS[number];
 
-interface ExcursionParametersProps {
-  onParametersChange?: (params: {
-    duration: number;
-    goal: Goal | null;
-  }) => void;
+export interface ExcursionParametersValue {
+  duration: number | null;
+  goal: UIGoal | null;
+  mood: UIMood | null;
+  energy: UIEnergy | null;
 }
 
-export function ExcursionParameters({ onParametersChange }: ExcursionParametersProps) {
-  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+interface ExcursionParametersProps {
+  value?: ExcursionParametersValue;
+  onChange?: (value: ExcursionParametersValue) => void;
+}
+
+export function ExcursionParameters({ value, onChange }: ExcursionParametersProps) {
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(value?.duration || null);
   const [customDuration, setCustomDuration] = useState('');
   const [isCustom, setIsCustom] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<UIGoal | null>(value?.goal || null);
+  const [selectedMood, setSelectedMood] = useState<UIMood | null>(value?.mood || null);
+  const [selectedEnergy, setSelectedEnergy] = useState<UIEnergy | null>(value?.energy || null);
 
   const handlePresetDuration = (minutes: number) => {
     setSelectedDuration(minutes);
     setIsCustom(false);
     setCustomDuration('');
-    onParametersChange?.({
+    onChange?.({
       duration: minutes,
       goal: selectedGoal,
+      mood: selectedMood,
+      energy: selectedEnergy,
     });
   };
 
@@ -41,19 +55,45 @@ export function ExcursionParameters({ onParametersChange }: ExcursionParametersP
 
     const minutes = parseInt(numericValue, 10);
     if (!isNaN(minutes) && minutes > 0) {
-      onParametersChange?.({
+      onChange?.({
         duration: minutes,
         goal: selectedGoal,
+        mood: selectedMood,
+        energy: selectedEnergy,
       });
     }
   };
 
-  const handleGoalSelect = (goal: Goal) => {
+  const handleGoalSelect = (goal: UIGoal) => {
     const newGoal = selectedGoal === goal ? null : goal;
     setSelectedGoal(newGoal);
-    onParametersChange?.({
+    onChange?.({
       duration: isCustom ? parseInt(customDuration, 10) : (selectedDuration || 0),
       goal: newGoal,
+      mood: selectedMood,
+      energy: selectedEnergy,
+    });
+  };
+
+  const handleMoodSelect = (mood: UIMood) => {
+    const newMood = selectedMood === mood ? null : mood;
+    setSelectedMood(newMood);
+    onChange?.({
+      duration: isCustom ? parseInt(customDuration, 10) : (selectedDuration || 0),
+      goal: selectedGoal,
+      mood: newMood,
+      energy: selectedEnergy,
+    });
+  };
+
+  const handleEnergySelect = (energy: UIEnergy) => {
+    const newEnergy = selectedEnergy === energy ? null : energy;
+    setSelectedEnergy(newEnergy);
+    onChange?.({
+      duration: isCustom ? parseInt(customDuration, 10) : (selectedDuration || 0),
+      goal: selectedGoal,
+      mood: selectedMood,
+      energy: newEnergy,
     });
   };
 
@@ -134,6 +174,56 @@ export function ExcursionParameters({ onParametersChange }: ExcursionParametersP
                 ]}
               >
                 {goal}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Mood</Text>
+        <View style={styles.moodGrid}>
+          {MOODS.map((mood) => (
+            <TouchableOpacity
+              key={mood}
+              style={[
+                styles.moodButton,
+                selectedMood === mood && styles.moodButtonActive,
+              ]}
+              onPress={() => handleMoodSelect(mood)}
+            >
+              <Text
+                style={[
+                  styles.moodButtonText,
+                  selectedMood === mood && styles.moodButtonTextActive,
+                ]}
+              >
+                {mood}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={[styles.section, { marginBottom: 0 }]}>
+        <Text style={styles.sectionTitle}>Energy Level</Text>
+        <View style={styles.energyGrid}>
+          {ENERGY_LEVELS.map((energy) => (
+            <TouchableOpacity
+              key={energy}
+              style={[
+                styles.energyButton,
+                selectedEnergy === energy && styles.energyButtonActive,
+              ]}
+              onPress={() => handleEnergySelect(energy)}
+            >
+              <Text
+                style={[
+                  styles.energyButtonText,
+                  selectedEnergy === energy && styles.energyButtonTextActive,
+                ]}
+              >
+                {energy}
               </Text>
             </TouchableOpacity>
           ))}
@@ -234,6 +324,61 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
   },
   goalButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  moodGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  moodButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  moodButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  moodButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  moodButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  energyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  energyButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.border.light,
+    flex: 1,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  energyButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  energyButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  energyButtonTextActive: {
     color: '#FFFFFF',
   },
 });
