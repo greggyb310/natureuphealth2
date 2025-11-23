@@ -29,8 +29,17 @@ interface CandidateLocation {
   estimated_travel_minutes_one_way: number;
   travel_mode: 'walking' | 'driving';
   tags: string[];
-  source: 'map_api' | 'user_custom';
+  source: 'map_api' | 'user_custom' | 'osm';
   terrain_intensity?: TerrainIntensity;
+}
+
+interface OSMElement {
+  type: string;
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
 }
 
 function decideTravelMode(
@@ -135,11 +144,11 @@ function scoreTerrain(
 
 function scoreTags(tags: string[], goal: string): number {
   let score = 0;
-  const hasWater = tags.some(t => ['water', 'lake', 'river'].includes(t));
-  const hasTrail = tags.some(t => ['trail', 'path'].includes(t));
+  const hasWater = tags.some(t => ['water', 'lake', 'river', 'pond', 'stream'].includes(t));
+  const hasTrail = tags.some(t => ['trail', 'path', 'footway', 'track'].includes(t));
   const hasQuiet = tags.some(t => ['quiet', 'peaceful'].includes(t));
-  const hasPark = tags.some(t => ['park', 'garden'].includes(t));
-  const hasTrees = tags.some(t => ['trees', 'forest'].includes(t));
+  const hasPark = tags.some(t => ['park', 'garden', 'green'].includes(t));
+  const hasTrees = tags.some(t => ['trees', 'forest', 'wood', 'nature'].includes(t));
 
   if (goal === 'relax') {
     if (hasWater) score += 2;
@@ -159,6 +168,188 @@ function scoreTags(tags: string[], goal: string): number {
   }
 
   return score;
+}
+
+function extractTagsFromOSM(osmTags: Record<string, string>): string[] {
+  const tags: string[] = [];
+  
+  if (osmTags.leisure === 'park' || osmTags.leisure === 'garden') {
+    tags.push('park');
+  }
+  
+  if (osmTags.natural) {
+    if (osmTags.natural === 'wood' || osmTags.natural === 'tree_row') {
+      tags.push('trees', 'forest');
+    } else if (osmTags.natural === 'water') {
+      tags.push('water');
+    } else if (osmTags.natural === 'grassland' || osmTags.natural === 'scrub') {
+      tags.push('nature', 'green');
+    } else {
+      tags.push('nature');
+    }
+  }
+  
+  if (osmTags.waterway) {
+    tags.push('water', osmTags.waterway);
+  }
+  
+  if (osmTags.highway === 'footway' || osmTags.highway === 'path' || osmTags.highway === 'track') {
+    tags.push('trail', 'path');
+  }
+  
+  if (osmTags.amenity === 'bench') {
+    tags.push('benches', 'seating');
+  }
+  
+  if (osmTags.landuse === 'forest' || osmTags.landuse === 'meadow') {
+    tags.push('nature', 'green');
+  }
+  
+  if (osmTags.tourism === 'viewpoint') {
+    tags.push('scenic', 'viewpoint');
+  }
+  
+  return [...new Set(tags)];
+}
+
+function generateLocationName(osmTags: Record<string, string>, osmType: string, osmId: number): string {
+  if (osmTags.name) return osmTags.name;
+  
+  if (osmTags.leisure === 'park') return 'Local Park';
+  if (osmTags.leisure === 'garden') return 'Community Garden';
+  if (osmTags.natural === 'wood') return 'Wooded Area';
+  if (osmTags.natural === 'water') return 'Water Feature';
+  if (osmTags.waterway) return 'Waterside Path';
+  if (osmTags.landuse === 'forest') return 'Forest Area';
+  if (osmTags.landuse === 'meadow') return 'Meadow';
+  if (osmTags.highway === 'footway' || osmTags.highway === 'path') return 'Walking Path';
+  
+  return `Nature Spot ${osmId}`;
+}
+
+function generateLocationDescription(osmTags: Record<string, string>): string | undefined {
+  if (osmTags.description) return osmTags.description;
+  
+  const parts: string[] = [];
+  
+  if (osmTags.leisure === 'park') {
+    parts.push('A local park');
+  } else if (osmTags.leisure === 'garden') {
+    parts.push('A community garden');
+  } else if (osmTags.natural === 'wood') {
+    parts.push('A wooded natural area');
+  } else if (osmTags.natural === 'water') {
+    parts.push('A water feature');
+  } else if (osmTags.waterway) {
+    parts.push('A path along the water');
+  } else if (osmTags.landuse === 'forest') {
+    parts.push('A forested area');
+  } else if (osmTags.landuse === 'meadow') {
+    parts.push('An open meadow');
+  }
+  
+  if (osmTags.amenity === 'bench') {
+    parts.push('with seating available');
+  }
+  
+  if (osmTags.access === 'yes' || osmTags.access === 'public') {
+    parts.push('with public access');
+  }
+  
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
+
+async function fetchOSMLocations(
+  centerLat: number,
+  centerLng: number,
+  radiusMeters: number
+): Promise<CandidateLocation[]> {
+  const overpassUrl = 'https://overpass-api.de/api/interpreter';
+  
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["leisure"="park"](around:${radiusMeters},${centerLat},${centerLng});
+      node["leisure"="garden"](around:${radiusMeters},${centerLat},${centerLng});
+      node["natural"](around:${radiusMeters},${centerLat},${centerLng});
+      node["waterway"](around:${radiusMeters},${centerLat},${centerLng});
+      node["landuse"="forest"](around:${radiusMeters},${centerLat},${centerLng});
+      node["landuse"="meadow"](around:${radiusMeters},${centerLat},${centerLng});
+      node["tourism"="viewpoint"](around:${radiusMeters},${centerLat},${centerLng});
+      way["leisure"="park"](around:${radiusMeters},${centerLat},${centerLng});
+      way["leisure"="garden"](around:${radiusMeters},${centerLat},${centerLng});
+      way["natural"](around:${radiusMeters},${centerLat},${centerLng});
+      way["landuse"="forest"](around:${radiusMeters},${centerLat},${centerLng});
+      way["landuse"="meadow"](around:${radiusMeters},${centerLat},${centerLng});
+    );
+    out center;
+  `;
+  
+  console.log('Querying Overpass API with radius:', radiusMeters);
+  
+  try {
+    const response = await fetch(overpassUrl, {
+      method: 'POST',
+      body: query,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Overpass API error:', response.status, response.statusText);
+      return [];
+    }
+    
+    const data = await response.json();
+    const elements: OSMElement[] = data.elements || [];
+    
+    console.log('OSM elements received:', elements.length);
+    
+    const locations: CandidateLocation[] = [];
+    const seenCoordinates = new Set<string>();
+    
+    for (const element of elements) {
+      if (!element.tags) continue;
+      
+      const lat = element.lat ?? element.center?.lat;
+      const lon = element.lon ?? element.center?.lon;
+      
+      if (!lat || !lon) continue;
+      
+      const coordKey = `${lat.toFixed(5)},${lon.toFixed(5)}`;
+      if (seenCoordinates.has(coordKey)) continue;
+      seenCoordinates.add(coordKey);
+      
+      const tags = extractTagsFromOSM(element.tags);
+      if (tags.length === 0) continue;
+      
+      const name = generateLocationName(element.tags, element.type, element.id);
+      const description = generateLocationDescription(element.tags);
+      
+      locations.push({
+        id: `osm-${element.type}-${element.id}`,
+        name,
+        description,
+        coordinates: { latitude: lat, longitude: lon },
+        estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
+          { latitude: centerLat, longitude: centerLng },
+          { latitude: lat, longitude: lon },
+          'walking'
+        ),
+        travel_mode: 'walking',
+        tags,
+        source: 'osm',
+        terrain_intensity: 'flat',
+      });
+    }
+    
+    console.log('Processed OSM locations:', locations.length);
+    return locations;
+  } catch (error) {
+    console.error('Error fetching OSM data:', error);
+    return [];
+  }
 }
 
 function generateStubLocations(
@@ -280,8 +471,19 @@ async function pickCandidateLocations(
 
   let allCandidates = [...nearbyCustom];
   
+  if (allCandidates.length < 5) {
+    console.log('Not enough custom locations, querying OpenStreetMap');
+    const osmLocations = await fetchOSMLocations(
+      location.latitude,
+      location.longitude,
+      radiusMeters
+    );
+    allCandidates = [...allCandidates, ...osmLocations];
+    console.log('Total candidates after OSM:', allCandidates.length);
+  }
+  
   if (allCandidates.length < 3) {
-    console.log('Not enough custom locations, generating stub locations');
+    console.log('Still not enough locations, adding stub locations');
     const stubLocations = generateStubLocations(
       location.latitude,
       location.longitude,
