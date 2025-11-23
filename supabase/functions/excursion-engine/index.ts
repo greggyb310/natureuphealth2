@@ -625,6 +625,7 @@ Deno.serve(async (req: Request) => {
         .insert({
           user_id: user.id,
           assistant_type: "excursion_creator",
+          type: "excursion_creation",
           thread_id: threadId,
         })
         .select()
