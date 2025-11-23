@@ -696,12 +696,13 @@ Deno.serve(async (req: Request) => {
 
     let runStatus = run.status;
     let attempts = 0;
-    const maxAttempts = 120;
+    const maxAttempts = 25;
+    const pollInterval = 2000;
 
-    console.log('Starting run polling, runId:', runId);
+    console.log('Starting run polling, runId:', runId, 'maxTime:', maxAttempts * pollInterval / 1000, 'seconds');
 
     while (runStatus !== "completed" && attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       const statusResponse = await fetch(
         `https://api.openai.com/v1/threads/${threadId}/runs/${runId}`,
@@ -720,8 +721,8 @@ Deno.serve(async (req: Request) => {
       const statusData = await statusResponse.json();
       runStatus = statusData.status;
 
-      if (attempts % 10 === 0) {
-        console.log(`Run status check ${attempts}: ${runStatus}`);
+      if (attempts % 5 === 0 || runStatus === "completed") {
+        console.log(`Run status check ${attempts * 2}s: ${runStatus}`);
       }
 
       if (runStatus === "failed" || runStatus === "cancelled" || runStatus === "expired") {
