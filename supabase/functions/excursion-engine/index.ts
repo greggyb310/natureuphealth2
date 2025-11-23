@@ -48,629 +48,434 @@ function decideTravelMode(
   mobility_level?: 'full' | 'limited' | 'assisted' | null
 ): 'walking' | 'driving' {
   if (time_available_minutes <= 20) return 'walking';
-  if (mobility_level === 'limited' || mobility_level === 'assisted') return 'walking';
-  if (time_available_minutes >= 45 && energy_level !== 'low') return 'driving';
-  return 'walking';
-}
-
-function computeSearchRadiusMeters(
-  travelMode: 'walking' | 'driving',
-  oneWayTravelBudgetMinutes: number
-): number {
-  const kmPerMinWalking = 0.075;
-  const kmPerMinDriving = 0.6;
-  const km = travelMode === 'walking'
-    ? kmPerMinWalking * oneWayTravelBudgetMinutes
-    : kmPerMinDriving * oneWayTravelBudgetMinutes;
-  return Math.max(km * 1000, 500);
-}
-
-function distanceInKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function isWithinRadiusMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-  radiusMeters: number
-): boolean {
-  return distanceInKm(lat1, lon1, lat2, lon2) * 1000 <= radiusMeters;
-}
-
-function estimateTravelTimeMinutes(
-  from: { latitude: number; longitude: number },
-  to: { latitude: number; longitude: number },
-  mode: 'walking' | 'driving'
-): number {
-  const km = distanceInKm(from.latitude, from.longitude, to.latitude, to.longitude);
-  const kmPerMinWalking = 0.075;
-  const kmPerMinDriving = 0.6;
-  const speed = mode === 'walking' ? kmPerMinWalking : kmPerMinDriving;
-  return km / speed;
-}
-
-function scoreTerrain(
-  loc: CandidateLocation,
-  energy_level: EnergyLevel,
-  fitness_level?: string | null,
-  mobility_level?: string | null
-): number {
-  const { terrain_intensity } = loc;
-  if (!terrain_intensity) return 0;
-
   if (mobility_level === 'limited' || mobility_level === 'assisted') {
-    if (terrain_intensity !== 'flat') return -1000;
+    return 'driving';
   }
-
-  if (energy_level === 'high') {
-    if (terrain_intensity === 'hilly') return 3;
-    if (terrain_intensity === 'rolling') return 2;
-    if (terrain_intensity === 'flat') return 1;
-  }
-
-  if (energy_level === 'medium') {
-    if (terrain_intensity === 'rolling') return 3;
-    if (terrain_intensity === 'flat') return 2;
-    if (terrain_intensity === 'hilly') {
-      return fitness_level === 'advanced' ? 1 : -1;
-    }
-  }
-
   if (energy_level === 'low') {
-    if (terrain_intensity === 'flat') return 3;
-    if (terrain_intensity === 'rolling') return 1;
-    if (terrain_intensity === 'hilly') return -2;
+    return time_available_minutes > 45 ? 'driving' : 'walking';
   }
-
-  return 0;
+  return time_available_minutes > 60 ? 'driving' : 'walking';
 }
 
-function scoreTags(tags: string[], goal: string): number {
-  let score = 0;
-  const hasWater = tags.some(t => ['water', 'lake', 'river', 'pond', 'stream'].includes(t));
-  const hasTrail = tags.some(t => ['trail', 'path', 'footway', 'track'].includes(t));
-  const hasQuiet = tags.some(t => ['quiet', 'peaceful'].includes(t));
-  const hasPark = tags.some(t => ['park', 'garden', 'green'].includes(t));
-  const hasTrees = tags.some(t => ['trees', 'forest', 'wood', 'nature'].includes(t));
-
-  if (goal === 'relax') {
-    if (hasWater) score += 2;
-    if (hasQuiet) score += 2;
-    if (hasTrees) score += 1;
-  } else if (goal === 'recharge') {
-    if (hasTrail) score += 2;
-    if (hasPark) score += 1;
-    if (hasTrees) score += 1;
-  } else if (goal === 'reflect') {
-    if (hasQuiet) score += 2;
-    if (hasWater) score += 1;
-    if (hasTrees) score += 1;
-  } else if (goal === 'connect' || goal === 'creativity') {
-    if (hasWater || hasQuiet || hasTrail) score += 1;
-    if (hasPark) score += 1;
+function getSearchRadius(time_available_minutes: number, travel_mode: 'walking' | 'driving'): number {
+  if (travel_mode === 'walking') {
+    if (time_available_minutes <= 20) return 1000;
+    if (time_available_minutes <= 45) return 2000;
+    return 3000;
+  } else {
+    if (time_available_minutes <= 30) return 5000;
+    if (time_available_minutes <= 60) return 10000;
+    return 15000;
   }
-
-  return score;
 }
 
-function extractTagsFromOSM(osmTags: Record<string, string>): string[] {
-  const tags: string[] = [];
-  
-  if (osmTags.leisure === 'park' || osmTags.leisure === 'garden') {
-    tags.push('park');
+function inferTerrainIntensity(tags: Record<string, string>): TerrainIntensity {
+  const surface = tags.surface?.toLowerCase() || '';
+  const trail = tags.trail_visibility || tags.sac_scale || '';
+
+  if (trail.includes('difficult') || trail.includes('mountain') || surface.includes('rock')) {
+    return 'hilly';
   }
-  
-  if (osmTags.natural) {
-    if (osmTags.natural === 'wood' || osmTags.natural === 'tree_row') {
-      tags.push('trees', 'forest');
-    } else if (osmTags.natural === 'water') {
-      tags.push('water');
-    } else if (osmTags.natural === 'grassland' || osmTags.natural === 'scrub') {
-      tags.push('nature', 'green');
-    } else {
-      tags.push('nature');
-    }
+  if (tags.incline || surface.includes('gravel') || tags.natural === 'hill') {
+    return 'rolling';
   }
-  
-  if (osmTags.waterway) {
-    tags.push('water', osmTags.waterway);
-  }
-  
-  if (osmTags.highway === 'footway' || osmTags.highway === 'path' || osmTags.highway === 'track') {
-    tags.push('trail', 'path');
-  }
-  
-  if (osmTags.amenity === 'bench') {
-    tags.push('benches', 'seating');
-  }
-  
-  if (osmTags.landuse === 'forest' || osmTags.landuse === 'meadow') {
-    tags.push('nature', 'green');
-  }
-  
-  if (osmTags.tourism === 'viewpoint') {
-    tags.push('scenic', 'viewpoint');
-  }
-  
-  return [...new Set(tags)];
+  return 'flat';
 }
 
-function generateLocationName(osmTags: Record<string, string>, osmType: string, osmId: number): string {
-  if (osmTags.name) return osmTags.name;
-  
-  if (osmTags.leisure === 'park') return 'Local Park';
-  if (osmTags.leisure === 'garden') return 'Community Garden';
-  if (osmTags.natural === 'wood') return 'Wooded Area';
-  if (osmTags.natural === 'water') return 'Water Feature';
-  if (osmTags.waterway) return 'Waterside Path';
-  if (osmTags.landuse === 'forest') return 'Forest Area';
-  if (osmTags.landuse === 'meadow') return 'Meadow';
-  if (osmTags.highway === 'footway' || osmTags.highway === 'path') return 'Walking Path';
-  
-  return `Nature Spot ${osmId}`;
-}
-
-function generateLocationDescription(osmTags: Record<string, string>): string | undefined {
-  if (osmTags.description) return osmTags.description;
-  
-  const parts: string[] = [];
-  
-  if (osmTags.leisure === 'park') {
-    parts.push('A local park');
-  } else if (osmTags.leisure === 'garden') {
-    parts.push('A community garden');
-  } else if (osmTags.natural === 'wood') {
-    parts.push('A wooded natural area');
-  } else if (osmTags.natural === 'water') {
-    parts.push('A water feature');
-  } else if (osmTags.waterway) {
-    parts.push('A path along the water');
-  } else if (osmTags.landuse === 'forest') {
-    parts.push('A forested area');
-  } else if (osmTags.landuse === 'meadow') {
-    parts.push('An open meadow');
-  }
-  
-  if (osmTags.amenity === 'bench') {
-    parts.push('with seating available');
-  }
-  
-  if (osmTags.access === 'yes' || osmTags.access === 'public') {
-    parts.push('with public access');
-  }
-  
-  return parts.length > 0 ? parts.join(' ') : undefined;
-}
-
-async function fetchOSMLocations(
-  centerLat: number,
-  centerLng: number,
-  radiusMeters: number
+async function queryOpenStreetMap(
+  lat: number,
+  lon: number,
+  radius: number,
+  tags: string[]
 ): Promise<CandidateLocation[]> {
   const overpassUrl = 'https://overpass-api.de/api/interpreter';
-  
+
+  const tagFilters = tags.map(tag => {
+    if (tag.includes('=')) return `["${tag.split('=')[0]}"="${tag.split('=')[1]}"]`;
+    return `["${tag}"]`;
+  }).join('');
+
   const query = `
     [out:json][timeout:25];
     (
-      node["leisure"="park"](around:${radiusMeters},${centerLat},${centerLng});
-      node["leisure"="garden"](around:${radiusMeters},${centerLat},${centerLng});
-      node["natural"](around:${radiusMeters},${centerLat},${centerLng});
-      node["waterway"](around:${radiusMeters},${centerLat},${centerLng});
-      node["landuse"="forest"](around:${radiusMeters},${centerLat},${centerLng});
-      node["landuse"="meadow"](around:${radiusMeters},${centerLat},${centerLng});
-      node["tourism"="viewpoint"](around:${radiusMeters},${centerLat},${centerLng});
-      way["leisure"="park"](around:${radiusMeters},${centerLat},${centerLng});
-      way["leisure"="garden"](around:${radiusMeters},${centerLat},${centerLng});
-      way["natural"](around:${radiusMeters},${centerLat},${centerLng});
-      way["landuse"="forest"](around:${radiusMeters},${centerLat},${centerLng});
-      way["landuse"="meadow"](around:${radiusMeters},${centerLat},${centerLng});
+      node${tagFilters}(around:${radius},${lat},${lon});
+      way${tagFilters}(around:${radius},${lat},${lon});
+      relation${tagFilters}(around:${radius},${lat},${lon});
     );
     out center;
   `;
-  
-  console.log('Querying Overpass API with radius:', radiusMeters);
-  
+
   try {
     const response = await fetch(overpassUrl, {
       method: 'POST',
-      body: query,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `data=${encodeURIComponent(query)}`,
     });
-    
+
     if (!response.ok) {
-      console.error('Overpass API error:', response.status, response.statusText);
+      console.error('OSM query failed:', response.status);
       return [];
     }
-    
+
     const data = await response.json();
     const elements: OSMElement[] = data.elements || [];
-    
-    console.log('OSM elements received:', elements.length);
-    
-    const locations: CandidateLocation[] = [];
-    const seenCoordinates = new Set<string>();
-    
-    for (const element of elements) {
-      if (!element.tags) continue;
-      
-      const lat = element.lat ?? element.center?.lat;
-      const lon = element.lon ?? element.center?.lon;
-      
-      if (!lat || !lon) continue;
-      
-      const coordKey = `${lat.toFixed(5)},${lon.toFixed(5)}`;
-      if (seenCoordinates.has(coordKey)) continue;
-      seenCoordinates.add(coordKey);
-      
-      const tags = extractTagsFromOSM(element.tags);
-      if (tags.length === 0) continue;
-      
-      const name = generateLocationName(element.tags, element.type, element.id);
-      const description = generateLocationDescription(element.tags);
-      
-      locations.push({
-        id: `osm-${element.type}-${element.id}`,
+
+    const locations: CandidateLocation[] = elements.map((el: OSMElement) => {
+      const elLat = el.lat ?? el.center?.lat ?? lat;
+      const elLon = el.lon ?? el.center?.lon ?? lon;
+
+      const distance = haversineDistance(lat, lon, elLat, elLon);
+      const travelMinutes = Math.ceil(distance / 80);
+
+      const name = el.tags?.name || el.tags?.ref || `Unnamed ${el.type} ${el.id}`;
+      const description = el.tags?.description || el.tags?.natural || el.tags?.leisure || '';
+
+      const terrain = inferTerrainIntensity(el.tags || {});
+
+      return {
+        id: `osm-${el.type}-${el.id}`,
         name,
         description,
-        coordinates: { latitude: lat, longitude: lon },
-        estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
-          { latitude: centerLat, longitude: centerLng },
-          { latitude: lat, longitude: lon },
-          'walking'
-        ),
+        coordinates: { latitude: elLat, longitude: elLon },
+        estimated_travel_minutes_one_way: travelMinutes,
         travel_mode: 'walking',
-        tags,
+        tags: Object.entries(el.tags || {}).map(([k, v]) => `${k}:${v}`),
         source: 'osm',
-        terrain_intensity: 'flat',
-      });
-    }
-    
-    console.log('Processed OSM locations:', locations.length);
+        terrain_intensity: terrain,
+      };
+    });
+
     return locations;
   } catch (error) {
-    console.error('Error fetching OSM data:', error);
+    console.error('OSM query error:', error);
     return [];
   }
 }
 
-function generateStubLocations(
-  centerLat: number,
-  centerLng: number,
-  radiusMeters: number,
-  travelMode: 'walking' | 'driving',
-  goal: string
-): CandidateLocation[] {
-  const locations: CandidateLocation[] = [];
-  const radiusKm = radiusMeters / 1000;
-  
-  const locationTypes = [
-    { name: 'Neighborhood Park', tags: ['park', 'trees', 'benches', 'quiet'], desc: 'A peaceful local park with trees and seating areas' },
-    { name: 'Green Space', tags: ['park', 'trees', 'trail'], desc: 'Open green area with walking paths' },
-    { name: 'Community Garden', tags: ['garden', 'quiet', 'trees', 'peaceful'], desc: 'Quiet community garden space' },
-    { name: 'Walking Trail', tags: ['trail', 'trees', 'path'], desc: 'Natural walking trail through greenery' },
-    { name: 'Waterside Path', tags: ['water', 'trail', 'peaceful'], desc: 'Scenic path along water' },
-    { name: 'Pocket Park', tags: ['park', 'benches', 'quiet'], desc: 'Small neighborhood park with seating' },
-  ];
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
 
-  const degreesPerKm = 1 / 111.32;
-  
-  for (let i = 0; i < Math.min(6, locationTypes.length); i++) {
-    const angle = (Math.PI * 2 * i) / 6;
-    const distance = radiusKm * (0.3 + Math.random() * 0.6);
-    
-    const lat = centerLat + (distance * Math.cos(angle) * degreesPerKm);
-    const lng = centerLng + (distance * Math.sin(angle) * degreesPerKm / Math.cos(centerLat * Math.PI / 180));
-    
-    const locType = locationTypes[i];
-    
-    locations.push({
-      id: `stub-${i}`,
-      name: locType.name,
-      description: locType.desc,
-      coordinates: { latitude: lat, longitude: lng },
-      estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
-        { latitude: centerLat, longitude: centerLng },
-        { latitude: lat, longitude: lng },
-        travelMode
-      ),
-      travel_mode: travelMode,
-      tags: locType.tags,
-      source: 'map_api',
-      terrain_intensity: 'flat',
-    });
-  }
-  
-  return locations;
+  const a = Math.sin(deltaPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
-async function pickCandidateLocations(
-  supabase: any,
-  currentData: any,
-  historicalData?: any
+async function fetchGooglePlaces(
+  lat: number,
+  lon: number,
+  radius: number,
+  googleApiKey: string
 ): Promise<CandidateLocation[]> {
-  const {
-    location,
-    time_available_minutes,
-    energy_level,
-    goal,
-  } = currentData;
-  const mobility_level = historicalData?.mobility_level ?? null;
-  const fitness_level = historicalData?.fitness_level ?? null;
+  const types = ['park', 'natural_feature', 'campground', 'tourist_attraction'];
+  const allPlaces: CandidateLocation[] = [];
 
-  const travelRatio = 0.4;
-  const travelBudgetMinutes = time_available_minutes * travelRatio;
-  const oneWayTravelBudget = travelBudgetMinutes / 2;
+  for (const type of types) {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lon}&radius=${radius}&type=${type}&key=${googleApiKey}`;
+      const response = await fetch(url);
 
-  const travelMode = decideTravelMode(
-    time_available_minutes,
-    energy_level,
-    mobility_level
-  );
+      if (!response.ok) {
+        console.error(`Google Places failed for type ${type}:`, response.status);
+        continue;
+      }
 
-  const radiusMeters = computeSearchRadiusMeters(
-    travelMode,
-    oneWayTravelBudget
-  );
+      const data = await response.json();
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        console.error('Google Places error:', data.status);
+        continue;
+      }
 
-  console.log('Location search:', { travelMode, radiusMeters, oneWayTravelBudget });
+      const places = (data.results || []).map((place: any) => {
+        const placeLat = place.geometry?.location?.lat || lat;
+        const placeLon = place.geometry?.location?.lng || lon;
+        const distance = haversineDistance(lat, lon, placeLat, placeLon);
+        const travelMinutes = Math.ceil(distance / 80);
 
-  const { data: customSpots, error: customError } = await supabase
-    .from('custom_nature_locations')
-    .select('*');
+        return {
+          id: place.place_id,
+          name: place.name,
+          description: place.vicinity || '',
+          coordinates: { latitude: placeLat, longitude: placeLon },
+          estimated_travel_minutes_one_way: travelMinutes,
+          travel_mode: 'walking' as const,
+          tags: place.types || [],
+          source: 'map_api' as const,
+        };
+      });
 
-  if (customError) {
-    console.error('custom_nature_locations error', customError);
+      allPlaces.push(...places);
+    } catch (error) {
+      console.error(`Error fetching Google Places for ${type}:`, error);
+    }
   }
 
-  const nearbyCustom: CandidateLocation[] = (customSpots ?? [])
-    .filter((spot: any) =>
-      isWithinRadiusMeters(
-        location.latitude,
-        location.longitude,
-        spot.latitude,
-        spot.longitude,
-        radiusMeters
-      )
-    )
-    .map((spot: any) => ({
-      id: spot.id,
-      name: spot.name,
-      description: spot.description ?? undefined,
-      coordinates: { latitude: spot.latitude, longitude: spot.longitude },
-      estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
-        location,
-        { latitude: spot.latitude, longitude: spot.longitude },
-        travelMode
-      ),
-      travel_mode: travelMode,
-      tags: spot.tags ?? [],
-      source: 'user_custom' as const,
-      terrain_intensity: 'flat' as TerrainIntensity,
-    }));
+  return allPlaces;
+}
 
-  console.log('Found custom locations:', nearbyCustom.length);
+async function fetchUserCustomLocations(
+  supabaseClient: any,
+  userId: string,
+  userLat: number,
+  userLon: number,
+  maxRadius: number
+): Promise<CandidateLocation[]> {
+  try {
+    const { data, error } = await supabaseClient
+      .from('custom_nature_locations')
+      .select('*')
+      .eq('user_id', userId);
 
-  let allCandidates = [...nearbyCustom];
-  
-  if (allCandidates.length < 5) {
-    console.log('Not enough custom locations, querying OpenStreetMap');
-    const osmLocations = await fetchOSMLocations(
-      location.latitude,
-      location.longitude,
-      radiusMeters
-    );
-    allCandidates = [...allCandidates, ...osmLocations];
-    console.log('Total candidates after OSM:', allCandidates.length);
-  }
-  
-  if (allCandidates.length < 3) {
-    console.log('Still not enough locations, adding stub locations');
-    const stubLocations = generateStubLocations(
-      location.latitude,
-      location.longitude,
-      radiusMeters,
-      travelMode,
-      goal
-    );
-    allCandidates = [...allCandidates, ...stubLocations];
-  }
+    if (error) {
+      console.error('Error fetching custom locations:', error);
+      return [];
+    }
 
-  const scored = allCandidates
-    .filter((loc) => {
-      const totalTravel = loc.estimated_travel_minutes_one_way * 2;
-      return totalTravel <= time_available_minutes * 0.9;
-    })
-    .map((loc) => {
-      const distKm = distanceInKm(
-        location.latitude,
-        location.longitude,
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const locationsWithDistance = data.map((loc: any) => {
+      const distance = haversineDistance(
+        userLat,
+        userLon,
         loc.coordinates.latitude,
         loc.coordinates.longitude
       );
-      const distanceScore = -distKm;
-      const terrainScore = scoreTerrain(loc, energy_level, fitness_level, mobility_level);
-      const tagScore = scoreTags(loc.tags, goal);
-      return { loc, score: distanceScore + terrainScore + tagScore };
-    })
-    .sort((a, b) => b.score - a.score);
+      const travelMinutes = Math.ceil(distance / 80);
 
-  return scored.slice(0, 10).map((s) => s.loc);
+      return {
+        id: loc.id,
+        name: loc.name,
+        description: loc.description || '',
+        coordinates: loc.coordinates,
+        estimated_travel_minutes_one_way: travelMinutes,
+        travel_mode: (loc.travel_mode || 'walking') as 'walking' | 'driving',
+        tags: loc.tags || [],
+        source: 'user_custom' as const,
+        terrain_intensity: loc.terrain_intensity as TerrainIntensity | undefined,
+        distance_meters: distance,
+      };
+    });
+
+    return locationsWithDistance.filter((loc: any) => loc.distance_meters <= maxRadius);
+  } catch (error) {
+    console.error('Error in fetchUserCustomLocations:', error);
+    return [];
+  }
+}
+
+async function gatherCandidateLocations(
+  userLat: number,
+  userLon: number,
+  timeAvailable: number,
+  energyLevel: EnergyLevel,
+  mobilityLevel: 'full' | 'limited' | 'assisted' | null | undefined,
+  googleApiKey: string | null,
+  supabaseClient: any,
+  userId: string
+): Promise<CandidateLocation[]> {
+  const travelMode = decideTravelMode(timeAvailable, energyLevel, mobilityLevel);
+  const searchRadius = getSearchRadius(timeAvailable, travelMode);
+
+  console.log('Gathering locations:', { travelMode, searchRadius, timeAvailable, energyLevel });
+
+  const osmTags = ['natural=wood', 'leisure=park', 'leisure=nature_reserve', 'tourism=viewpoint'];
+
+  const [osmResults, googleResults, customResults] = await Promise.all([
+    queryOpenStreetMap(userLat, userLon, searchRadius, osmTags),
+    googleApiKey ? fetchGooglePlaces(userLat, userLon, searchRadius, googleApiKey) : Promise.resolve([]),
+    fetchUserCustomLocations(supabaseClient, userId, userLat, userLon, searchRadius),
+  ]);
+
+  console.log('Location sources:', {
+    osm: osmResults.length,
+    google: googleResults.length,
+    custom: customResults.length,
+  });
+
+  const allLocations = [...osmResults, ...googleResults, ...customResults];
+
+  const uniqueLocations = allLocations.reduce((acc, loc) => {
+    const existing = acc.find(l =>
+      haversineDistance(
+        l.coordinates.latitude,
+        l.coordinates.longitude,
+        loc.coordinates.latitude,
+        loc.coordinates.longitude
+      ) < 50
+    );
+
+    if (!existing) {
+      acc.push(loc);
+    }
+    return acc;
+  }, [] as CandidateLocation[]);
+
+  console.log('Unique locations after deduplication:', uniqueLocations.length);
+  return uniqueLocations;
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
-    const excursionEngineAssistantId = Deno.env.get("EXCURSION_ENGINE_ASSISTANT_ID");
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error("Missing Supabase configuration");
-    }
-
-    if (!openaiApiKey) {
-      throw new Error("Missing OpenAI API key");
-    }
-
-    if (!excursionEngineAssistantId) {
-      throw new Error("Missing Excursion Engine Assistant ID");
-    }
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      throw new Error("Missing authorization header");
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: { Authorization: authHeader },
-      },
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseClient = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
-    );
-
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
-      throw new Error("Unauthorized");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const body: RequestBody = await req.json();
-    const { phase, sessionId, currentData, historicalData, selectedExcursion, currentZoneId, previousCheckIns, sessionSummary } = body;
+    const { phase } = body;
 
-    console.log("Excursion Engine request:", { phase, sessionId, userId: user.id });
+    console.log('Excursion Engine called:', { phase, userId: user.id });
 
-    let candidate_locations: CandidateLocation[] = [];
-
-    if (phase === "PLAN" && currentData) {
-      candidate_locations = await pickCandidateLocations(
-        supabase,
-        currentData,
-        historicalData
-      );
-
-      console.log('Candidate locations found:', candidate_locations.length);
-
-      if (candidate_locations.length === 0) {
-        return new Response(JSON.stringify({
-          phase: "PLAN",
-          reason: "no_locations_found",
-          message_for_user: "I can't find anything close enough that fits your time and access. Do you know a nearby spot—maybe a small park, office courtyard, or quiet place with some trees and benches we can use?"
-        }), {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        });
-      }
-    }
-
-    let conversation = await supabase
-      .from("conversations")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("assistant_type", "excursion_creator")
-      .maybeSingle();
-
-    let threadId: string;
-
-    if (!conversation.data) {
-      const createThreadResponse = await fetch(
-        "https://api.openai.com/v1/threads",
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${openaiApiKey}`,
-            "Content-Type": "application/json",
-            "OpenAI-Beta": "assistants=v2",
-          },
-        }
-      );
-
-      if (!createThreadResponse.ok) {
-        throw new Error("Failed to create thread");
-      }
-
-      const thread = await createThreadResponse.json();
-      threadId = thread.id;
-
-      const { data: newConversation, error: convError } = await supabase
-        .from("conversations")
-        .insert({
-          user_id: user.id,
-          assistant_type: "excursion_creator",
-          type: "excursion_creation",
-          thread_id: threadId,
-        })
-        .select()
-        .single();
-
-      if (convError) {
-        console.error("Failed to create conversation:", convError);
-        throw new Error(`Failed to create conversation: ${convError.message}`);
-      }
-
-      conversation.data = newConversation;
+    if (phase === "PLAN") {
+      return await handlePlanPhase(body, user.id, supabaseClient);
+    } else if (phase === "GUIDE") {
+      return await handleGuidePhase(body, user.id, supabaseClient);
+    } else if (phase === "REFLECT") {
+      return await handleReflectPhase(body, user.id, supabaseClient);
     } else {
-      threadId = conversation.data.thread_id;
+      return new Response(
+        JSON.stringify({ error: "Invalid phase" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+  } catch (error) {
+    console.error("Error in excursion-engine:", error);
+    return new Response(
+      JSON.stringify({ error: error.message || "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
 
-    const messageContent = JSON.stringify({
-      phase,
-      currentData,
-      historicalData,
-      candidate_locations: phase === "PLAN" ? candidate_locations : undefined,
-      selectedExcursion,
-      currentZoneId,
-      previousCheckIns,
-      sessionSummary,
+async function handlePlanPhase(
+  body: RequestBody,
+  userId: string,
+  supabaseClient: any
+): Promise<Response> {
+  const { currentData, historicalData } = body;
+
+  if (!currentData?.user_profile || !currentData?.user_location) {
+    return new Response(
+      JSON.stringify({ error: "Missing required data for PLAN phase" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const {
+    duration_minutes,
+    wellness_goal,
+    mood,
+    energy_level,
+    mobility_level,
+  } = currentData.user_profile;
+
+  const { latitude, longitude } = currentData.user_location;
+  const googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY") || null;
+
+  const candidateLocations = await gatherCandidateLocations(
+    latitude,
+    longitude,
+    duration_minutes,
+    energy_level,
+    mobility_level,
+    googleApiKey,
+    supabaseClient,
+    userId
+  );
+
+  if (candidateLocations.length === 0) {
+    return new Response(
+      JSON.stringify({
+        error: "No suitable nature locations found nearby. Try adjusting your preferences or location.",
+      }),
+      { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const contextForAssistant = {
+    user_profile: {
+      duration_minutes,
+      wellness_goal,
+      mood,
+      energy_level,
+      mobility_level,
+    },
+    current_location: { latitude, longitude },
+    candidate_locations: candidateLocations,
+    historical_data: historicalData || null,
+  };
+
+  console.log('Calling OpenAI Assistant with context:', {
+    candidateCount: candidateLocations.length,
+    duration: duration_minutes,
+    goal: wellness_goal,
+  });
+
+  const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+  const assistantId = Deno.env.get("EXCURSION_ENGINE_ASSISTANT_ID");
+
+  if (!openaiApiKey || !assistantId) {
+    return new Response(
+      JSON.stringify({ error: "OpenAI configuration missing" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const threadResponse = await fetch("https://api.openai.com/v1/threads", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+        "OpenAI-Beta": "assistants=v2",
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: `Generate personalized nature excursion plans based on this context:\n\n${JSON.stringify(contextForAssistant, null, 2)}`,
+          },
+        ],
+      }),
     });
 
-    const addMessageResponse = await fetch(
-      `https://api.openai.com/v1/threads/${threadId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-          "OpenAI-Beta": "assistants=v2",
-        },
-        body: JSON.stringify({
-          role: "user",
-          content: messageContent,
-        }),
-      }
-    );
-
-    if (!addMessageResponse.ok) {
-      throw new Error("Failed to add message to thread");
+    if (!threadResponse.ok) {
+      const errorText = await threadResponse.text();
+      console.error('Failed to create thread:', errorText);
+      throw new Error("Failed to create OpenAI thread");
     }
+
+    const thread = await threadResponse.json();
+    const threadId = thread.id;
+
+    console.log('Thread created:', threadId);
 
     const runResponse = await fetch(
       `https://api.openai.com/v1/threads/${threadId}/runs`,
@@ -682,13 +487,15 @@ Deno.serve(async (req: Request) => {
           "OpenAI-Beta": "assistants=v2",
         },
         body: JSON.stringify({
-          assistant_id: excursionEngineAssistantId,
+          assistant_id: assistantId,
         }),
       }
     );
 
     if (!runResponse.ok) {
-      throw new Error("Failed to start run");
+      const errorText = await runResponse.text();
+      console.error('Failed to create run:', errorText);
+      throw new Error("Failed to start assistant run");
     }
 
     const run = await runResponse.json();
@@ -738,8 +545,10 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Run timed out after ${attempts} seconds. Status: ${runStatus}`);
     }
 
+    console.log('Run completed, fetching messages');
+
     const messagesResponse = await fetch(
-      `https://api.openai.com/v1/threads/${threadId}/messages?limit=1&order=desc`,
+      `https://api.openai.com/v1/threads/${threadId}/messages`,
       {
         headers: {
           "Authorization": `Bearer ${openaiApiKey}`,
@@ -749,49 +558,72 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!messagesResponse.ok) {
-      throw new Error("Failed to retrieve messages");
+      throw new Error("Failed to fetch messages");
     }
 
-    const messagesData = await messagesResponse.json();
-    const latestMessage = messagesData.data[0];
+    const messages = await messagesResponse.json();
+    const assistantMessages = messages.data.filter(
+      (msg: any) => msg.role === "assistant"
+    );
 
-    if (!latestMessage || latestMessage.role !== "assistant") {
-      throw new Error("No assistant message found");
+    if (assistantMessages.length === 0) {
+      throw new Error("No response from assistant");
     }
 
-    const textContent = latestMessage.content.find((c: any) => c.type === "text");
+    const latestMessage = assistantMessages[0];
+    const textContent = latestMessage.content.find(
+      (c: any) => c.type === "text"
+    );
+
     if (!textContent) {
-      throw new Error("No text content in assistant message");
+      throw new Error("No text content in assistant response");
     }
 
     const responseText = textContent.text.value;
-    let responseData;
+    console.log('Assistant response received, length:', responseText.length);
 
+    let parsedPlans;
     try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error("Failed to parse assistant response as JSON");
+      parsedPlans = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse assistant response:', responseText);
+      throw new Error("Assistant response was not valid JSON");
     }
 
-    return new Response(JSON.stringify(responseData), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
-    });
-  } catch (error) {
-    console.error("Excursion Engine Error:", error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "An unknown error occurred",
-      }),
+      JSON.stringify({ plans: parsedPlans }),
       {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
+  } catch (error) {
+    console.error("Error in handlePlanPhase:", error);
+    return new Response(
+      JSON.stringify({ error: error.message || "Failed to generate plan" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
-});
+}
+
+async function handleGuidePhase(
+  body: RequestBody,
+  userId: string,
+  supabaseClient: any
+): Promise<Response> {
+  return new Response(
+    JSON.stringify({ message: "GUIDE phase not yet implemented" }),
+    { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+async function handleReflectPhase(
+  body: RequestBody,
+  userId: string,
+  supabaseClient: any
+): Promise<Response> {
+  return new Response(
+    JSON.stringify({ message: "REFLECT phase not yet implemented" }),
+    { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
