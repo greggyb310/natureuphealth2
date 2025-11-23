@@ -595,7 +595,7 @@ Deno.serve(async (req: Request) => {
       .from("conversations")
       .select("*")
       .eq("user_id", user.id)
-      .eq("assistant_type", "excursion_engine")
+      .eq("assistant_type", "excursion_creator")
       .maybeSingle();
 
     let threadId: string;
@@ -624,14 +624,15 @@ Deno.serve(async (req: Request) => {
         .from("conversations")
         .insert({
           user_id: user.id,
-          assistant_type: "excursion_engine",
+          assistant_type: "excursion_creator",
           thread_id: threadId,
         })
         .select()
         .single();
 
       if (convError) {
-        throw new Error("Failed to create conversation");
+        console.error("Failed to create conversation:", convError);
+        throw new Error(`Failed to create conversation: ${convError.message}`);
       }
 
       conversation.data = newConversation;
