@@ -248,6 +248,12 @@ export default function ExcursionsScreen() {
         }}
       />
 
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
       {excursionParams.duration && excursionParams.goal && excursionParams.mood && excursionParams.energy && (
         <TouchableOpacity
           style={[styles.generateButton, generating && styles.generateButtonDisabled]}
