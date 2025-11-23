@@ -696,7 +696,9 @@ Deno.serve(async (req: Request) => {
 
     let runStatus = run.status;
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 120;
+
+    console.log('Starting run polling, runId:', runId);
 
     while (runStatus !== "completed" && attempts < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -718,15 +720,21 @@ Deno.serve(async (req: Request) => {
       const statusData = await statusResponse.json();
       runStatus = statusData.status;
 
+      if (attempts % 10 === 0) {
+        console.log(`Run status check ${attempts}: ${runStatus}`);
+      }
+
       if (runStatus === "failed" || runStatus === "cancelled" || runStatus === "expired") {
-        throw new Error(`Run ${runStatus}`);
+        console.error('Run failed with status:', runStatus, 'Last error:', statusData.last_error);
+        throw new Error(`Run ${runStatus}: ${statusData.last_error?.message || 'Unknown error'}`);
       }
 
       attempts++;
     }
 
     if (runStatus !== "completed") {
-      throw new Error("Run timed out");
+      console.error('Run timed out after', attempts, 'attempts. Last status:', runStatus);
+      throw new Error(`Run timed out after ${attempts} seconds. Status: ${runStatus}`);
     }
 
     const messagesResponse = await fetch(
