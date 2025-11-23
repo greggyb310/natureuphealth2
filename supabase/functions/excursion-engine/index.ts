@@ -161,6 +161,56 @@ function scoreTags(tags: string[], goal: string): number {
   return score;
 }
 
+function generateStubLocations(
+  centerLat: number,
+  centerLng: number,
+  radiusMeters: number,
+  travelMode: 'walking' | 'driving',
+  goal: string
+): CandidateLocation[] {
+  const locations: CandidateLocation[] = [];
+  const radiusKm = radiusMeters / 1000;
+  
+  const locationTypes = [
+    { name: 'Neighborhood Park', tags: ['park', 'trees', 'benches', 'quiet'], desc: 'A peaceful local park with trees and seating areas' },
+    { name: 'Green Space', tags: ['park', 'trees', 'trail'], desc: 'Open green area with walking paths' },
+    { name: 'Community Garden', tags: ['garden', 'quiet', 'trees', 'peaceful'], desc: 'Quiet community garden space' },
+    { name: 'Walking Trail', tags: ['trail', 'trees', 'path'], desc: 'Natural walking trail through greenery' },
+    { name: 'Waterside Path', tags: ['water', 'trail', 'peaceful'], desc: 'Scenic path along water' },
+    { name: 'Pocket Park', tags: ['park', 'benches', 'quiet'], desc: 'Small neighborhood park with seating' },
+  ];
+
+  const degreesPerKm = 1 / 111.32;
+  
+  for (let i = 0; i < Math.min(6, locationTypes.length); i++) {
+    const angle = (Math.PI * 2 * i) / 6;
+    const distance = radiusKm * (0.3 + Math.random() * 0.6);
+    
+    const lat = centerLat + (distance * Math.cos(angle) * degreesPerKm);
+    const lng = centerLng + (distance * Math.sin(angle) * degreesPerKm / Math.cos(centerLat * Math.PI / 180));
+    
+    const locType = locationTypes[i];
+    
+    locations.push({
+      id: `stub-${i}`,
+      name: locType.name,
+      description: locType.desc,
+      coordinates: { latitude: lat, longitude: lng },
+      estimated_travel_minutes_one_way: estimateTravelTimeMinutes(
+        { latitude: centerLat, longitude: centerLng },
+        { latitude: lat, longitude: lng },
+        travelMode
+      ),
+      travel_mode: travelMode,
+      tags: locType.tags,
+      source: 'map_api',
+      terrain_intensity: 'flat',
+    });
+  }
+  
+  return locations;
+}
+
 async function pickCandidateLocations(
   supabase: any,
   currentData: any,
@@ -229,6 +279,18 @@ async function pickCandidateLocations(
   console.log('Found custom locations:', nearbyCustom.length);
 
   let allCandidates = [...nearbyCustom];
+  
+  if (allCandidates.length < 3) {
+    console.log('Not enough custom locations, generating stub locations');
+    const stubLocations = generateStubLocations(
+      location.latitude,
+      location.longitude,
+      radiusMeters,
+      travelMode,
+      goal
+    );
+    allCandidates = [...allCandidates, ...stubLocations];
+  }
 
   const scored = allCandidates
     .filter((loc) => {
