@@ -157,7 +157,10 @@ export default function ExcursionsScreen() {
   };
 
   const handleGenerateExcursions = async () => {
+    console.log('=== GENERATE EXCURSIONS CLICKED ===');
+
     if (!excursionParams.duration || !excursionParams.goal || !excursionParams.mood || !excursionParams.energy) {
+      console.log('Missing parameters:', excursionParams);
       Alert.alert('Missing Information', 'Please select duration, goal, mood, and energy level');
       return;
     }
