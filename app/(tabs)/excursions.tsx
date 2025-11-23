@@ -166,13 +166,18 @@ export default function ExcursionsScreen() {
       setGenerating(true);
       setError(null);
 
+      console.log('Step 1: Requesting location permission...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
+        setError('Location permission is required');
         Alert.alert('Permission Required', 'Location permission is needed to generate personalized excursions');
         return;
       }
 
+      console.log('Step 2: Getting current location...');
       const location = await Location.getCurrentPositionAsync({});
+      console.log('Location:', location.coords.latitude, location.coords.longitude);
+
       const mapped = mapUIToAPI(excursionParams);
 
       const currentData: CurrentData = {
@@ -186,10 +191,15 @@ export default function ExcursionsScreen() {
         goal: mapped.goal!,
       };
 
-      const { data: profile } = await supabase
+      console.log('Step 3: Loading user profile...');
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
-        .single();
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Profile error:', profileError);
+      }
 
       const historicalData: HistoricalData = {
         age: profile?.age,
@@ -198,7 +208,9 @@ export default function ExcursionsScreen() {
         preferred_activities: profile?.preferred_activities,
       };
 
+      console.log('Step 4: Calling excursion engine API...');
       const result = await excursionEngineAPI.plan(currentData, historicalData);
+      console.log('Step 5: Received result:', result);
 
       if (result.reason === 'no_locations_found') {
         router.push({
@@ -220,7 +232,9 @@ export default function ExcursionsScreen() {
       }
     } catch (err) {
       console.error('Failed to generate excursions:', err);
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to generate excursions');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate excursions';
+      setError(errorMessage);
+      Alert.alert('Error', errorMessage);
     } finally {
       setGenerating(false);
     }
