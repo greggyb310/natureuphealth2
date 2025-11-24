@@ -45,11 +45,13 @@ export default function PlanSelectionScreen() {
         .from('excursions')
         .insert({
           user_id: user.id,
-          title: plan.route_overview.title,
+          name: plan.route_overview.title,
           description: plan.route_overview.description,
           duration_minutes: plan.route_overview.total_duration_minutes,
           difficulty_level: plan.route_overview.difficulty,
-          route_data: plan,
+          latitude: plan.zones[0]?.location?.latitude || 0,
+          longitude: plan.zones[0]?.location?.longitude || 0,
+          excursion_data: plan,
         })
         .select()
         .single();

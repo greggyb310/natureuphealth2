@@ -12,15 +12,12 @@ import { Sparkles, Plus } from 'lucide-react-native';
 
 interface Excursion {
   id: string;
-  title: string;
+  name: string;
   description: string;
   duration_minutes: number;
-  location: {
-    address?: string;
-  };
+  address?: string;
   difficulty_level: string;
   created_at: string;
-  completed_at: string | null;
 }
 
 export default function ExcursionsScreen() {
@@ -318,10 +315,10 @@ export default function ExcursionsScreen() {
           {excursions.map((excursion) => (
             <ExcursionCard
               key={excursion.id}
-              title={excursion.title}
+              title={excursion.name}
               description={excursion.description || ''}
               duration={formatDuration(excursion.duration_minutes || 0)}
-              distance={excursion.location?.address || 'Location not set'}
+              distance={excursion.address || 'Location not set'}
               difficulty={excursion.difficulty_level || 'Easy'}
               isFavorite={favorites.has(excursion.id)}
               onPress={() => {

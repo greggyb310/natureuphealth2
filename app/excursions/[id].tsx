@@ -8,11 +8,11 @@ import { MapPin, Clock, TrendingUp, Play, AlertCircle } from 'lucide-react-nativ
 
 interface Excursion {
   id: string;
-  title: string;
+  name: string;
   description: string;
   duration_minutes: number;
   difficulty_level: string;
-  route_data: ExcursionPlanOption;
+  excursion_data: ExcursionPlanOption;
 }
 
 export default function ExcursionDetailScreen() {
@@ -29,11 +29,11 @@ export default function ExcursionDetailScreen() {
       const plan: ExcursionPlanOption = JSON.parse(params.plan as string);
       setExcursion({
         id: 'preview',
-        title: plan.route_overview.title,
+        name: plan.route_overview.title,
         description: plan.route_overview.description,
         duration_minutes: plan.route_overview.total_duration_minutes,
         difficulty_level: plan.route_overview.difficulty,
-        route_data: plan,
+        excursion_data: plan,
       });
       setLoading(false);
     } else if (params.id) {
@@ -74,11 +74,13 @@ export default function ExcursionDetailScreen() {
           .from('excursions')
           .insert({
             user_id: user.id,
-            title: excursion.title,
+            name: excursion.name,
             description: excursion.description,
             duration_minutes: excursion.duration_minutes,
             difficulty_level: excursion.difficulty_level,
-            route_data: excursion.route_data,
+            latitude: excursion.excursion_data.zones[0]?.location?.latitude || 0,
+            longitude: excursion.excursion_data.zones[0]?.location?.longitude || 0,
+            excursion_data: excursion.excursion_data,
           })
           .select()
           .single();
@@ -180,13 +182,13 @@ export default function ExcursionDetailScreen() {
     );
   }
 
-  const plan = excursion.route_data;
+  const plan = excursion.excursion_data;
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>{excursion.title}</Text>
+          <Text style={styles.title}>{excursion.name}</Text>
           <View
             style={[
               styles.difficultyBadge,
