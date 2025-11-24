@@ -381,7 +381,7 @@ async function handlePlanPhase(
 ): Promise<Response> {
   const { currentData, historicalData } = body;
 
-  if (!currentData?.user_profile || !currentData?.user_location) {
+  if (!currentData?.location || !currentData?.time_available_minutes || !currentData?.energy_level) {
     return new Response(
       JSON.stringify({ error: "Missing required data for PLAN phase" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -389,14 +389,15 @@ async function handlePlanPhase(
   }
 
   const {
-    duration_minutes,
-    wellness_goal,
+    location,
+    time_available_minutes: duration_minutes,
+    goal: wellness_goal,
     mood,
     energy_level,
-    mobility_level,
-  } = currentData.user_profile;
+  } = currentData;
 
-  const { latitude, longitude } = currentData.user_location;
+  const { latitude, longitude } = location;
+  const mobility_level = historicalData?.mobility_level;
   const googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY") || null;
 
   const candidateLocations = await gatherCandidateLocations(
@@ -591,7 +592,7 @@ async function handlePlanPhase(
     }
 
     return new Response(
-      JSON.stringify({ plans: parsedPlans }),
+      JSON.stringify({ plan_options: parsedPlans }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
