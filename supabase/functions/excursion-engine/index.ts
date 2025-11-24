@@ -227,8 +227,7 @@ async function fetchUserCustomLocations(
   try {
     const { data, error } = await supabaseClient
       .from('custom_nature_locations')
-      .select('*')
-      .eq('user_id', userId);
+      .select('*');
 
     if (error) {
       console.error('Error fetching custom locations:', error);
@@ -243,8 +242,8 @@ async function fetchUserCustomLocations(
       const distance = haversineDistance(
         userLat,
         userLon,
-        loc.coordinates.latitude,
-        loc.coordinates.longitude
+        loc.latitude,
+        loc.longitude
       );
       const travelMinutes = Math.ceil(distance / 80);
 
@@ -252,12 +251,12 @@ async function fetchUserCustomLocations(
         id: loc.id,
         name: loc.name,
         description: loc.description || '',
-        coordinates: loc.coordinates,
+        coordinates: { latitude: loc.latitude, longitude: loc.longitude },
         estimated_travel_minutes_one_way: travelMinutes,
-        travel_mode: (loc.travel_mode || 'walking') as 'walking' | 'driving',
+        travel_mode: 'walking' as 'walking' | 'driving',
         tags: loc.tags || [],
         source: 'user_custom' as const,
-        terrain_intensity: loc.terrain_intensity as TerrainIntensity | undefined,
+        terrain_intensity: 'flat' as TerrainIntensity,
         distance_meters: distance,
       };
     });
@@ -414,9 +413,10 @@ async function handlePlanPhase(
   if (candidateLocations.length === 0) {
     return new Response(
       JSON.stringify({
-        error: "No suitable nature locations found nearby. Try adjusting your preferences or location.",
+        reason: "no_locations_found",
+        message_for_user: "No suitable nature locations found nearby. Try adjusting your preferences or location.",
       }),
-      { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
